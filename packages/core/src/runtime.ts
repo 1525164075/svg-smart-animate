@@ -212,9 +212,11 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const fill = lerpColor(tr.startFill, tr.endFill, tt) ?? tr.endFill ?? tr.startFill;
       const stroke = lerpColor(tr.startStroke, tr.endStroke, tt) ?? tr.endStroke ?? tr.startStroke;
 
-      tr.pathEl.setAttribute('fill', fill ?? 'none');
-      if (stroke) tr.pathEl.setAttribute('stroke', stroke);
-      else tr.pathEl.setAttribute('stroke', 'none');
+      // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
+      // when BOTH are missing to avoid accidentally filling stroke-only icons.
+      const fillAttr = fill === undefined && stroke === undefined ? '#000000' : (fill ?? 'none');
+      tr.pathEl.setAttribute('fill', fillAttr);
+      tr.pathEl.setAttribute('stroke', stroke ?? 'none');
 
       const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);
       tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
