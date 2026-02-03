@@ -23,4 +23,12 @@ describe('morph', () => {
     expect(start).not.toBe(end);
     expect(start).toMatch(/^M/);
   });
+
+  it('keeps open paths open when closed=false', () => {
+    const from = 'M0 0 L10 0';
+    const to = 'M0 10 L10 10';
+    const interp = createPathInterpolator(from, to, { closed: false });
+    const mid = interp(0.5);
+    expect(/z/i.test(mid)).toBe(false);
+  });
 });

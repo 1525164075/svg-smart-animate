@@ -120,6 +120,10 @@ function applyStaticAttributes(el: SVGPathElement, attrs: Record<string, string>
   }
 }
 
+function isClosedPath(d: string): boolean {
+  return /[zZ]\s*$/.test(d.trim());
+}
+
 function extractDefs(svgText: string): SVGDefsElement | null {
   try {
     const parser = new DOMParser();
@@ -187,7 +191,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   }
 
   for (const p of match.pairs) {
-    const isOpenPath = !/[zZ]\s*$/.test(p.end.d.trim());
+    const isOpenPath = !isClosedPath(p.end.d);
     const hasDashArray = p.end.attrs['stroke-dasharray'] !== undefined;
     const shouldDash =
       isAppearMode &&
@@ -214,13 +218,17 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       }
     }
 
+    const isClosed = isClosedPath(startD) && isClosedPath(p.end.d);
+
     tracks.push({
       pathEl,
       order: p.end.order,
       index: trackIndex++,
       startD,
       endD: p.end.d,
-      interp: shouldDash ? () => p.end.d : createPathInterpolator(startD, p.end.d, { maxSegmentLength }),
+      interp: shouldDash
+        ? () => p.end.d
+        : createPathInterpolator(startD, p.end.d, { maxSegmentLength, closed: isClosed }),
       startFill: p.start.fill,
       endFill: p.end.fill,
       startStroke: p.start.stroke,
@@ -235,7 +243,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   // End-only: appear
   for (const e of match.unmatchedEnd) {
     const appearStyle = options?.appearStyle ?? 'collapse-to-centroid';
-    const isOpenPath = !/[zZ]\s*$/.test(e.d.trim());
+    const isOpenPath = !isClosedPath(e.d);
     const hasDashArray = e.attrs['stroke-dasharray'] !== undefined;
     const shouldDash =
       isOpenPath &&
@@ -261,13 +269,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       }
     }
 
+    const isClosed = isClosedPath(startD) && isClosedPath(e.d);
+
     tracks.push({
       pathEl,
       order: e.order,
       index: trackIndex++,
       startD,
       endD: e.d,
-      interp: shouldDash ? () => e.d : createPathInterpolator(startD, e.d, { maxSegmentLength }),
+      interp: shouldDash ? () => e.d : createPathInterpolator(startD, e.d, { maxSegmentLength, closed: isClosed }),
       startFill: e.fill,
       endFill: e.fill,
       startStroke: e.stroke,
@@ -287,13 +297,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
     applyStaticAttributes(pathEl, s.attrs);
 
+    const isClosed = isClosedPath(s.d) && isClosedPath(endD);
+
     tracks.push({
       pathEl,
       order: s.order,
       index: trackIndex++,
       startD: s.d,
       endD,
-      interp: createPathInterpolator(s.d, endD, { maxSegmentLength }),
+      interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed }),
       startFill: s.fill,
       endFill: s.fill,
       startStroke: s.stroke,
