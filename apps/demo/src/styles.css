@@ -104,6 +104,12 @@ a {
   align-items: center;
 }
 
+.tooltipWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .helpTip {
   margin-left: auto;
   width: 28px;
@@ -121,6 +127,46 @@ a {
 
 .helpTip:hover {
   background: rgba(255, 255, 255, 0.16);
+}
+
+.helpTipSmall {
+  margin-left: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  padding: 0;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.helpTipSmall:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.tooltip {
+  position: absolute;
+  right: 0;
+  top: 34px;
+  width: 240px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(10, 16, 32, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.45;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  display: none;
+  z-index: 20;
+}
+
+.tooltip.show {
+  display: block;
 }
 
 .control {

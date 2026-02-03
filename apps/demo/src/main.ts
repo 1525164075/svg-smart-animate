@@ -64,14 +64,15 @@ leftHeader.innerHTML = `<strong>输入</strong>`;
 const controls = el('div', 'controls');
 leftHeader.appendChild(controls);
 
-const helpTip = el('button', 'helpTip');
-helpTip.type = 'button';
-helpTip.setAttribute(
-  'title',
-  '细分参数：控制路径切分密度。数值越大分段越少更省性能，数值越小更平滑但更耗性能。'
-);
-helpTip.textContent = '?';
-leftHeader.appendChild(helpTip);
+const helpWrap = el('span', 'tooltipWrap');
+const helpBtn = el('button', 'helpTip');
+helpBtn.type = 'button';
+helpBtn.textContent = '?';
+const helpTip = el('div', 'tooltip');
+helpTip.textContent = '细分参数：控制路径切分密度。数值越大分段越少更省性能，数值越小更平滑但更耗性能。';
+helpWrap.appendChild(helpBtn);
+helpWrap.appendChild(helpTip);
+leftHeader.appendChild(helpWrap);
 
 const durationWrap = el('label', 'control');
 durationWrap.innerHTML = `时长(ms) <input type="number" min="50" step="50" value="700" />`;
@@ -95,6 +96,16 @@ const appearSelect = appearWrap.querySelector<HTMLSelectElement>('select')!;
 
 const engineWrap = el('label', 'control');
 engineWrap.innerHTML = `插值引擎 <select><option value="auto">auto</option><option value="flubber">flubber</option><option value="d3">d3</option></select>`;
+const engineHelpWrap = el('span', 'tooltipWrap');
+const engineHelpBtn = el('button', 'helpTipSmall');
+engineHelpBtn.type = 'button';
+engineHelpBtn.textContent = '?';
+const engineHelpTip = el('div', 'tooltip');
+engineHelpTip.textContent =
+  'flubber：通用性强，可处理命令不一致的路径；d3：命令一致时更稳定；auto：命令一致用 d3，否则用 flubber。';
+engineHelpWrap.appendChild(engineHelpBtn);
+engineHelpWrap.appendChild(engineHelpTip);
+engineWrap.appendChild(engineHelpWrap);
 controls.appendChild(engineWrap);
 const engineSelect = engineWrap.querySelector<HTMLSelectElement>('select')!;
 
@@ -137,6 +148,22 @@ errorBox.style.display = 'none';
 right.appendChild(errorBox);
 
 let controller: AnimateController | null = null;
+
+function setupTooltip(btn: HTMLButtonElement, tip: HTMLDivElement) {
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    tip.classList.toggle('show');
+  });
+}
+
+document.addEventListener('click', () => {
+  for (const el of document.querySelectorAll('.tooltip.show')) {
+    el.classList.remove('show');
+  }
+});
+
+setupTooltip(helpBtn, helpTip);
+setupTooltip(engineHelpBtn, engineHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
   target.innerHTML = '';
