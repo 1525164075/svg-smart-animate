@@ -87,6 +87,33 @@ function computeViewBox(nodes: NormalizedPathNode[]): { minX: number; minY: numb
   };
 }
 
+function computeBBox(nodes: NormalizedPathNode[]): {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+  width: number;
+  height: number;
+  area: number;
+} {
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+
+  for (const n of nodes) {
+    const b = bboxFromPathD(n.d);
+    minX = Math.min(minX, b.minX);
+    minY = Math.min(minY, b.minY);
+    maxX = Math.max(maxX, b.maxX);
+    maxY = Math.max(maxY, b.maxY);
+  }
+
+  const width = maxX - minX;
+  const height = maxY - minY;
+  return { minX, minY, maxX, maxY, width, height, area: width * height };
+}
+
 function deriveMaxSegmentLength(options?: AnimateSvgOptions): number {
   const samplePoints = options?.samplePoints;
   if (!samplePoints || !Number.isFinite(samplePoints)) return 2;
@@ -124,6 +151,17 @@ function isClosedPath(d: string): boolean {
   return /[zZ]\s*$/.test(d.trim());
 }
 
+function isBackgroundNode(n: NormalizedPathNode, overall: ReturnType<typeof computeBBox>): boolean {
+  if (n.tag !== 'rect') return false;
+  if (!n.fill || n.fill === 'none') return false;
+  if (n.stroke && n.stroke !== 'none') return false;
+  if (overall.area <= 0) return false;
+
+  const b = bboxFromPathD(n.d);
+  const areaRatio = (b.area || 0) / overall.area;
+  return areaRatio >= 0.9;
+}
+
 function extractDefs(svgText: string): SVGDefsElement | null {
   try {
     const parser = new DOMParser();
@@ -147,12 +185,21 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   const isAppearMode = !args.startSvg;
   let startNodes: NormalizedPathNode[];
+  let animEndNodes = endNodes;
+  let backgroundNodes: NormalizedPathNode[] = [];
+
+  if (isAppearMode && endNodes.length) {
+    const overall = computeBBox(endNodes);
+    backgroundNodes = endNodes.filter((n) => isBackgroundNode(n, overall));
+    animEndNodes = endNodes.filter((n) => !backgroundNodes.includes(n));
+  }
+
   if (args.startSvg) {
     const startRaw = parseSvgToNodes(args.startSvg);
     startNodes = normalizeNodes(startRaw);
   } else {
     const style = options?.appearStyle ?? 'collapse-to-centroid';
-    startNodes = endNodes.map((n) => {
+    startNodes = animEndNodes.map((n) => {
       return {
         ...n,
         d: makeAppearStartPath(n.d, { style }),
@@ -162,7 +209,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   }
 
   // Build tracks: matched pairs + appear/disappear fallbacks.
-  const match = matchNodes(startNodes, endNodes, options?.matchWeights);
+  const match = matchNodes(startNodes, animEndNodes, options?.matchWeights);
 
   // Reset container.
   container.innerHTML = '';
@@ -188,6 +235,20 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   function mkPathEl(): SVGPathElement {
     return document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  }
+
+  if (isAppearMode && backgroundNodes.length) {
+    const orderedBg = [...backgroundNodes].sort((a, b) => a.order - b.order);
+    for (const n of orderedBg) {
+      const pathEl = mkPathEl();
+      pathEl.setAttribute('d', n.d);
+      applyStaticAttributes(pathEl, n.attrs);
+      const fillAttr = n.fill ?? 'none';
+      pathEl.setAttribute('fill', fillAttr);
+      pathEl.setAttribute('stroke', n.stroke ?? 'none');
+      if (n.opacity != null) pathEl.setAttribute('opacity', String(n.opacity));
+      svg.appendChild(pathEl);
+    }
   }
 
   for (const p of match.pairs) {
