@@ -4,6 +4,7 @@ import { normalizeNodes, type NormalizedPathNode } from './normalize';
 import { matchNodes } from './match';
 import { createPathInterpolator } from './morph';
 import { makeAppearStartPath } from './appear';
+import { svgPathProperties } from 'svg-path-properties';
 import { bboxFromPathD, parseColorToRgba, type Rgba } from './geom';
 import { linear } from './easing';
 
@@ -18,6 +19,7 @@ type Track = {
   endStroke: string | undefined;
   startOpacity: number;
   endOpacity: number;
+  dashLength?: number;
 };
 
 function clamp01(t: number): number {
@@ -99,6 +101,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const endRaw = parseSvgToNodes(args.endSvg);
   const endNodes = normalizeNodes(endRaw);
 
+  const isAppearMode = !args.startSvg;
   let startNodes: NormalizedPathNode[];
   if (args.startSvg) {
     const startRaw = parseSvgToNodes(args.startSvg);
@@ -140,41 +143,76 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   }
 
   for (const p of match.pairs) {
+    const isOpenPath = !/[zZ]\s*$/.test(p.end.d.trim());
+    const shouldDash = isAppearMode && isOpenPath && (p.end.fill === undefined || p.end.fill === 'none') && p.end.stroke;
+    const startD = shouldDash ? p.end.d : p.start.d;
+
     const pathEl = mkPathEl();
     svg.appendChild(pathEl);
 
+    let dashLength: number | undefined;
+    if (shouldDash) {
+      try {
+        dashLength = new svgPathProperties(p.end.d).getTotalLength();
+      } catch {
+        try {
+          dashLength = pathEl.getTotalLength ? pathEl.getTotalLength() : undefined;
+        } catch {
+          dashLength = undefined;
+        }
+      }
+    }
+
     tracks.push({
       pathEl,
-      startD: p.start.d,
+      startD,
       endD: p.end.d,
-      interp: createPathInterpolator(p.start.d, p.end.d, { maxSegmentLength }),
+      interp: shouldDash ? () => p.end.d : createPathInterpolator(startD, p.end.d, { maxSegmentLength }),
       startFill: p.start.fill,
       endFill: p.end.fill,
       startStroke: p.start.stroke,
       endStroke: p.end.stroke,
       startOpacity: p.start.opacity ?? 1,
-      endOpacity: p.end.opacity ?? 1
+      endOpacity: p.end.opacity ?? 1,
+      dashLength
     });
   }
 
   // End-only: appear
   for (const e of match.unmatchedEnd) {
-    const startD = makeAppearStartPath(e.d, { style: options?.appearStyle ?? 'collapse-to-centroid' });
+    const appearStyle = options?.appearStyle ?? 'collapse-to-centroid';
+    const isOpenPath = !/[zZ]\s*$/.test(e.d.trim());
+    const shouldDash = isOpenPath && (e.fill === undefined || e.fill === 'none') && e.stroke;
+    const startD = shouldDash ? e.d : makeAppearStartPath(e.d, { style: appearStyle });
 
     const pathEl = mkPathEl();
     svg.appendChild(pathEl);
+
+    let dashLength: number | undefined;
+    if (shouldDash) {
+      try {
+        dashLength = new svgPathProperties(e.d).getTotalLength();
+      } catch {
+        try {
+          dashLength = pathEl.getTotalLength ? pathEl.getTotalLength() : undefined;
+        } catch {
+          dashLength = undefined;
+        }
+      }
+    }
 
     tracks.push({
       pathEl,
       startD,
       endD: e.d,
-      interp: createPathInterpolator(startD, e.d, { maxSegmentLength }),
+      interp: shouldDash ? () => e.d : createPathInterpolator(startD, e.d, { maxSegmentLength }),
       startFill: e.fill,
       endFill: e.fill,
       startStroke: e.stroke,
       endStroke: e.stroke,
       startOpacity: 0,
-      endOpacity: e.opacity ?? 1
+      endOpacity: e.opacity ?? 1,
+      dashLength
     });
   }
 
@@ -217,6 +255,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const fillAttr = fill === undefined && stroke === undefined ? '#000000' : (fill ?? 'none');
       tr.pathEl.setAttribute('fill', fillAttr);
       tr.pathEl.setAttribute('stroke', stroke ?? 'none');
+
+      if (tr.dashLength !== undefined && stroke) {
+        const dash = tr.dashLength;
+        tr.pathEl.setAttribute('stroke-dasharray', String(dash));
+        tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tt)));
+      } else {
+        tr.pathEl.removeAttribute('stroke-dasharray');
+        tr.pathEl.removeAttribute('stroke-dashoffset');
+      }
 
       const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);
       tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));

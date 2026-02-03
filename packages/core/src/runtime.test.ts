@@ -63,4 +63,17 @@ describe('animateSvg runtime', () => {
     // SVG default fill is black. We should not force it to 'none' (invisible).
     expect(path!.getAttribute('fill')).not.toBe('none');
   });
+
+  it('single-SVG appear draws open stroke paths with dash animation', () => {
+    const endSvg = `<svg viewBox=\"0 0 100 100\"><path id=\"p\" d=\"M10 10 L90 10\" stroke=\"#000\" stroke-width=\"2\"/></svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({ endSvg, container, options: { duration: 100 } });
+
+    controller.seek(0);
+    const path = container.querySelector('path');
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(path!.getAttribute('stroke-dashoffset')).toBeTruthy();
+  });
 });
