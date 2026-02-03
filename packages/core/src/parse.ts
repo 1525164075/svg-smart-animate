@@ -1,9 +1,9 @@
 import { parse } from 'svgson';
 
-export type RawSvgPathNode = {
+export type RawSvgNode = {
   id: string;
   name?: string;
-  d: string;
+  tag: string;
   attrs: Record<string, string>;
 };
 
@@ -18,23 +18,32 @@ function walk(node: SvgsonAst, visitor: (n: SvgsonAst) => void): void {
   for (const child of node.children) walk(child, visitor);
 }
 
-export async function parseSvgToNodes(svg: string): Promise<RawSvgPathNode[]> {
+export async function parseSvgToNodes(svg: string): Promise<RawSvgNode[]> {
   const ast = (await parse(svg, { camelcase: false })) as unknown as SvgsonAst;
 
-  const nodes: RawSvgPathNode[] = [];
+  const nodes: RawSvgNode[] = [];
   let autoId = 0;
 
   walk(ast, (n) => {
-    if (n.name !== 'path') return;
-    const d = n.attributes?.d;
-    if (typeof d !== 'string' || d.trim() === '') return;
+    const tag = n.name;
+    if (
+      tag !== 'path' &&
+      tag !== 'rect' &&
+      tag !== 'circle' &&
+      tag !== 'ellipse' &&
+      tag !== 'line' &&
+      tag !== 'polyline' &&
+      tag !== 'polygon'
+    ) {
+      return;
+    }
 
     const id = (n.attributes?.id || n.attributes?.['data-name'] || `__auto_${autoId++}`).trim();
 
     nodes.push({
       id,
       name: n.attributes?.['data-name'],
-      d,
+      tag,
       attrs: { ...n.attributes }
     });
   });

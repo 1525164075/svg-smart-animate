@@ -1,26 +1,37 @@
-import type { RawSvgPathNode } from './parse';
+import type { RawSvgNode } from './parse';
+import { shapeToPath } from './shapeToPath';
+import { applyTransformToPathD } from './transform';
 
 export type NormalizedPathNode = {
   id: string;
+  tag: string;
   d: string;
   fill?: string;
   stroke?: string;
   opacity?: number;
-  transform?: string;
   attrs: Record<string, string>;
 };
 
-export function normalizeNodes(raw: RawSvgPathNode[]): NormalizedPathNode[] {
-  return raw.map((n) => {
+export function normalizeNodes(raw: RawSvgNode[]): NormalizedPathNode[] {
+  const out: NormalizedPathNode[] = [];
+
+  for (const n of raw) {
+    const d0 = shapeToPath(n.tag, n.attrs);
+    if (!d0) continue;
+
+    const d = applyTransformToPathD(d0, n.attrs.transform);
+
     const opacity = n.attrs.opacity ? Number.parseFloat(n.attrs.opacity) : undefined;
-    return {
+    out.push({
       id: n.id,
-      d: n.d,
+      tag: n.tag,
+      d,
       fill: n.attrs.fill,
       stroke: n.attrs.stroke,
       opacity: Number.isFinite(opacity) ? opacity : undefined,
-      transform: n.attrs.transform,
       attrs: n.attrs
-    };
-  });
+    });
+  }
+
+  return out;
 }
