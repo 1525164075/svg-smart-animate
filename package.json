@@ -1,0 +1,19 @@
+{
+  "name": "svg-smart-animate",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm -ws run build",
+    "test": "npm -ws run test",
+    "dev": "npm -w @svg-smart-animate/demo run dev"
+  },
+  "devDependencies": {
+    "@vitest/ui": "^4.0.18",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  }
+}
