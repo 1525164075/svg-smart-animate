@@ -1,4 +1,4 @@
-import getBounds from 'svg-path-bounds';
+import svgpath from 'svgpath';
 
 export type BBox = {
   minX: number;
@@ -13,7 +13,76 @@ export type BBox = {
 };
 
 export function bboxFromPathD(d: string): BBox {
-  const [minX, minY, maxX, maxY] = getBounds(d);
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  let hasPoint = false;
+
+  const add = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    hasPoint = true;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+
+  try {
+    svgpath(d)
+      .unshort()
+      .unarc()
+      .abs()
+      .iterate((seg, _i, x, y) => {
+        const cmd = seg[0];
+        switch (cmd) {
+          case 'M':
+          case 'L':
+          case 'T': {
+            add(seg[1] as number, seg[2] as number);
+            break;
+          }
+          case 'H': {
+            add(seg[1] as number, y);
+            break;
+          }
+          case 'V': {
+            add(x, seg[1] as number);
+            break;
+          }
+          case 'C': {
+            add(seg[1] as number, seg[2] as number);
+            add(seg[3] as number, seg[4] as number);
+            add(seg[5] as number, seg[6] as number);
+            break;
+          }
+          case 'S': {
+            add(seg[1] as number, seg[2] as number);
+            add(seg[3] as number, seg[4] as number);
+            break;
+          }
+          case 'Q': {
+            add(seg[1] as number, seg[2] as number);
+            add(seg[3] as number, seg[4] as number);
+            break;
+          }
+          // After .unarc() there should be no arcs, but keep a safe fallback.
+          case 'A': {
+            add(seg[6] as number, seg[7] as number);
+            break;
+          }
+          default:
+            break;
+        }
+      });
+  } catch {
+    // Keep default empty bbox below.
+  }
+
+  if (!hasPoint) {
+    return { minX: 0, minY: 0, maxX: 0, maxY: 0, width: 0, height: 0, cx: 0, cy: 0, area: 0 };
+  }
+
   const width = maxX - minX;
   const height = maxY - minY;
   return {
