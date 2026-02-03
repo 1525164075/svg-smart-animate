@@ -1,13 +1,9 @@
 import type { AnimateController, AnimateSvgArgs } from './types';
+import { createAnimator } from './runtime';
 
 export type * from './types';
+export * from './easing';
 
-export function animateSvg(_args: AnimateSvgArgs): AnimateController {
-  // Stub. Real implementation comes in later tasks.
-  return {
-    play() {},
-    pause() {},
-    seek() {},
-    destroy() {}
-  };
+export function animateSvg(args: AnimateSvgArgs): AnimateController {
+  return createAnimator(args);
 }

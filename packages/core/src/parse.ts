@@ -1,4 +1,4 @@
-import { parse } from 'svgson';
+import { parseSync } from 'svgson';
 
 export type RawSvgNode = {
   id: string;
@@ -18,8 +18,8 @@ function walk(node: SvgsonAst, visitor: (n: SvgsonAst) => void): void {
   for (const child of node.children) walk(child, visitor);
 }
 
-export async function parseSvgToNodes(svg: string): Promise<RawSvgNode[]> {
-  const ast = (await parse(svg, { camelcase: false })) as unknown as SvgsonAst;
+export function parseSvgToNodes(svg: string): RawSvgNode[] {
+  const ast = parseSync(svg, { camelcase: false }) as unknown as SvgsonAst;
 
   const nodes: RawSvgNode[] = [];
   let autoId = 0;
