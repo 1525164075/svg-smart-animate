@@ -30,4 +30,18 @@ describe('parseSvgToNodes', () => {
     expect(nodes.length).toBe(1);
     expect(nodes[0].id).toBe('visible');
   });
+
+  it('ignores nodes inside filter groups', () => {
+    const svgWithFilter = `
+      <svg viewBox="0 0 100 100">
+        <g filter="url(#blur)">
+          <circle id="glow" cx="50" cy="50" r="20" fill="#fff"/>
+        </g>
+        <circle id="main" cx="50" cy="50" r="10" fill="#000"/>
+      </svg>
+    `;
+    const nodes = parseSvgToNodes(svgWithFilter);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].id).toBe('main');
+  });
 });

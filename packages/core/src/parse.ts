@@ -24,7 +24,10 @@ const BLOCKED_ANCESTORS = new Set([
 ]);
 
 function walk(node: SvgsonAst, visitor: (n: SvgsonAst) => void, blocked: boolean): void {
-  const isBlocked = blocked || BLOCKED_ANCESTORS.has(node.name);
+  const isBlocked =
+    blocked ||
+    BLOCKED_ANCESTORS.has(node.name) ||
+    (typeof node.attributes?.filter === 'string' && node.attributes.filter.trim() !== '');
   if (isBlocked) return;
 
   visitor(node);
