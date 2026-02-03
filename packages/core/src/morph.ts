@@ -1,5 +1,6 @@
 import { interpolate } from 'flubber';
 import { interpolatePath } from 'd3-interpolate-path';
+import type { MorphEngine } from './types';
 
 export type MorphOptions = {
   /**
@@ -10,13 +11,17 @@ export type MorphOptions = {
    * Whether to treat paths as closed. Use false for open strokes like polylines/lines.
    */
   closed?: boolean;
+  engine?: MorphEngine;
 };
 
 export function createPathInterpolator(fromD: string, toD: string, options?: MorphOptions): (t: number) => string {
   const flubberOptions: { maxSegmentLength?: number; closed?: boolean } = {};
   if (options?.maxSegmentLength !== undefined) flubberOptions.maxSegmentLength = options.maxSegmentLength;
   if (options?.closed !== undefined) flubberOptions.closed = options.closed;
-  const useD3 = typeof interpolatePath === 'function' && !options?.closed && pathCommandSignature(fromD) === pathCommandSignature(toD);
+  const engine = options?.engine ?? 'auto';
+  const commandsMatch = pathCommandSignature(fromD) === pathCommandSignature(toD);
+  const canUseD3 = typeof interpolatePath === 'function' && !options?.closed && commandsMatch;
+  const useD3 = engine === 'd3' ? canUseD3 : engine === 'flubber' ? false : canUseD3;
   const base = useD3 ? interpolatePath(fromD, toD) : interpolate(fromD, toD, flubberOptions);
   if (options?.closed === false) {
     return (t: number) => {

@@ -289,7 +289,11 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endD: p.end.d,
       interp: shouldDash
         ? () => p.end.d
-        : createPathInterpolator(startD, p.end.d, { maxSegmentLength, closed: isClosed }),
+        : createPathInterpolator(startD, p.end.d, {
+            maxSegmentLength,
+            closed: isClosed,
+            engine: options?.morphEngine
+          }),
       startFill: p.start.fill,
       endFill: p.end.fill,
       startStroke: p.start.stroke,
@@ -338,7 +342,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       index: trackIndex++,
       startD,
       endD: e.d,
-      interp: shouldDash ? () => e.d : createPathInterpolator(startD, e.d, { maxSegmentLength, closed: isClosed }),
+      interp: shouldDash
+        ? () => e.d
+        : createPathInterpolator(startD, e.d, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
       startFill: e.fill,
       endFill: e.fill,
       startStroke: e.stroke,
@@ -366,7 +372,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       index: trackIndex++,
       startD: s.d,
       endD,
-      interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed }),
+      interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
       startFill: s.fill,
       endFill: s.fill,
       startStroke: s.stroke,

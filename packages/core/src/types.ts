@@ -9,6 +9,7 @@ export type MatchWeights = {
 };
 
 export type AppearStyle = 'collapse-to-centroid' | 'bbox-to-shape';
+export type MorphEngine = 'auto' | 'flubber' | 'd3';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -16,6 +17,7 @@ export type AnimateSvgOptions = {
   samplePoints?: number;
   matchWeights?: MatchWeights;
   appearStyle?: AppearStyle;
+  morphEngine?: MorphEngine;
 };
 
 export type AnimateSvgArgs = {
