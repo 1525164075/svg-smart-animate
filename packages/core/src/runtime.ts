@@ -12,10 +12,10 @@ type Track = {
   startD: string;
   endD: string;
   interp: (t: number) => string;
-  startFill?: string;
-  endFill?: string;
-  startStroke?: string;
-  endStroke?: string;
+  startFill: string | undefined;
+  endFill: string | undefined;
+  startStroke: string | undefined;
+  endStroke: string | undefined;
   startOpacity: number;
   endOpacity: number;
 };

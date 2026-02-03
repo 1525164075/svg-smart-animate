@@ -2,7 +2,6 @@ import { parseSync } from 'svgson';
 
 export type RawSvgNode = {
   id: string;
-  name?: string;
   tag: string;
   attrs: Record<string, string>;
 };
@@ -42,7 +41,6 @@ export function parseSvgToNodes(svg: string): RawSvgNode[] {
 
     nodes.push({
       id,
-      name: n.attributes?.['data-name'],
       tag,
       attrs: { ...n.attributes }
     });

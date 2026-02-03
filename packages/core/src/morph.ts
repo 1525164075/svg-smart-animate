@@ -8,7 +8,7 @@ export type MorphOptions = {
 };
 
 export function createPathInterpolator(fromD: string, toD: string, options?: MorphOptions): (t: number) => string {
-  return interpolate(fromD, toD, {
-    maxSegmentLength: options?.maxSegmentLength
-  });
+  const flubberOptions: { maxSegmentLength?: number } = {};
+  if (options?.maxSegmentLength !== undefined) flubberOptions.maxSegmentLength = options.maxSegmentLength;
+  return interpolate(fromD, toD, flubberOptions);
 }

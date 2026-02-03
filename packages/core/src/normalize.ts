@@ -22,15 +22,18 @@ export function normalizeNodes(raw: RawSvgNode[]): NormalizedPathNode[] {
     const d = applyTransformToPathD(d0, n.attrs.transform);
 
     const opacity = n.attrs.opacity ? Number.parseFloat(n.attrs.opacity) : undefined;
-    out.push({
+    const node: NormalizedPathNode = {
       id: n.id,
       tag: n.tag,
       d,
-      fill: n.attrs.fill,
-      stroke: n.attrs.stroke,
-      opacity: Number.isFinite(opacity) ? opacity : undefined,
       attrs: n.attrs
-    });
+    };
+
+    if (n.attrs.fill !== undefined) node.fill = n.attrs.fill;
+    if (n.attrs.stroke !== undefined) node.stroke = n.attrs.stroke;
+    if (typeof opacity === 'number' && Number.isFinite(opacity)) node.opacity = opacity;
+
+    out.push(node);
   }
 
   return out;
