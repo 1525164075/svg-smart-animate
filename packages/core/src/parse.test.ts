@@ -69,4 +69,19 @@ describe('parseSvgToNodes', () => {
     expect(nodes.length).toBe(1);
     expect(nodes[0].id).toBe('dropped');
   });
+
+  it('applies class styles from <style> when attrs are missing', () => {
+    const svgWithStyle = `
+      <svg viewBox="0 0 100 100">
+        <style>
+          .st0 { fill: #ff0000; stroke: #000000; }
+        </style>
+        <rect id="r" class="st0" x="10" y="10" width="10" height="10"/>
+      </svg>
+    `;
+    const nodes = parseSvgToNodes(svgWithStyle);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].attrs.fill).toBe('#ff0000');
+    expect(nodes[0].attrs.stroke).toBe('#000000');
+  });
 });

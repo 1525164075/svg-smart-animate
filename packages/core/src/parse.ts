@@ -13,6 +13,12 @@ type SvgsonAst = {
   children: SvgsonAst[];
 };
 
+type StyleMaps = {
+  byClass: Map<string, Record<string, string>>;
+  byId: Map<string, Record<string, string>>;
+  byTag: Map<string, Record<string, string>>;
+};
+
 type InheritedAttrs = {
   transform?: string;
   opacity?: number;
@@ -41,6 +47,82 @@ function toNumber(v: string | undefined): number | undefined {
 function mergeTransform(parent: string | undefined, own: string | undefined): string | undefined {
   if (parent && own) return `${parent} ${own}`;
   return own || parent;
+}
+
+function parseStyleDeclarations(input: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const parts = input.split(';');
+  for (const part of parts) {
+    const [rawKey, rawVal] = part.split(':');
+    if (!rawKey || !rawVal) continue;
+    const key = rawKey.trim();
+    const value = rawVal.trim();
+    if (!key || !value) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+function parseStyleText(cssText: string): StyleMaps {
+  const byClass = new Map<string, Record<string, string>>();
+  const byId = new Map<string, Record<string, string>>();
+  const byTag = new Map<string, Record<string, string>>();
+
+  const rules = cssText.split('}');
+  for (const rule of rules) {
+    const [selectorRaw, bodyRaw] = rule.split('{');
+    if (!selectorRaw || !bodyRaw) continue;
+    const body = bodyRaw.trim();
+    if (!body) continue;
+    const declarations = parseStyleDeclarations(body);
+
+    const selectors = selectorRaw.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const selector of selectors) {
+      if (selector.startsWith('.')) {
+        const cls = selector.slice(1).trim();
+        if (cls) byClass.set(cls, { ...(byClass.get(cls) || {}), ...declarations });
+        continue;
+      }
+      if (selector.startsWith('#')) {
+        const id = selector.slice(1).trim();
+        if (id) byId.set(id, { ...(byId.get(id) || {}), ...declarations });
+        continue;
+      }
+      if (/^[a-zA-Z][\\w-]*$/.test(selector)) {
+        byTag.set(selector, { ...(byTag.get(selector) || {}), ...declarations });
+      }
+    }
+  }
+
+  return { byClass, byId, byTag };
+}
+
+function extractStyleMaps(svgText: string): StyleMaps {
+  const empty = { byClass: new Map(), byId: new Map(), byTag: new Map() };
+  if (typeof DOMParser === 'undefined') {
+    const matches = svgText.match(/<style[^>]*>([\s\S]*?)<\/style>/gi);
+    if (!matches) return empty;
+    const cssText = matches
+      .map((m) => m.replace(/<style[^>]*>/i, '').replace(/<\/style>/i, ''))
+      .join('\\n');
+    return parseStyleText(cssText);
+  }
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgText, 'image/svg+xml');
+    const styles = Array.from(doc.querySelectorAll('style'));
+    const cssText = styles.map((s) => s.textContent || '').join('\\n');
+    return parseStyleText(cssText);
+  } catch {
+    return empty;
+  }
+}
+
+function applyStyleIfMissing(attrs: Record<string, string>, style: Record<string, string> | undefined): void {
+  if (!style) return;
+  for (const [key, value] of Object.entries(style)) {
+    if (attrs[key] === undefined) attrs[key] = value;
+  }
 }
 
 function inheritAttrs(parent: InheritedAttrs, node: SvgsonAst): InheritedAttrs {
@@ -90,6 +172,7 @@ function walk(
 
 export function parseSvgToNodes(svg: string): RawSvgNode[] {
   const ast = parseSync(svg, { camelcase: false }) as unknown as SvgsonAst;
+  const styleMaps = extractStyleMaps(svg);
 
   const nodes: RawSvgNode[] = [];
   let autoId = 0;
@@ -111,6 +194,31 @@ export function parseSvgToNodes(svg: string): RawSvgNode[] {
 
     const id = (n.attributes?.id || n.attributes?.['data-name'] || `__auto_${autoId++}`).trim();
     const attrs = { ...n.attributes };
+    const tagStyle = styleMaps.byTag.get(tag);
+    const idStyle = styleMaps.byId.get(id);
+
+    applyStyleIfMissing(attrs, tagStyle);
+
+    const classAttr = attrs.class || attrs.className;
+    if (classAttr) {
+      const classes = String(classAttr)
+        .split(/\\s+/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+      for (const cls of classes) {
+        applyStyleIfMissing(attrs, styleMaps.byClass.get(cls));
+      }
+    }
+
+    applyStyleIfMissing(attrs, idStyle);
+
+    if (attrs.style) {
+      const inline = parseStyleDeclarations(attrs.style);
+      for (const [key, value] of Object.entries(inline)) {
+        attrs[key] = value;
+      }
+    }
+
     applyInheritedToAttrs(attrs, inherited);
 
     nodes.push({
