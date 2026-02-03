@@ -4,6 +4,7 @@ import { applyTransformToPathD } from './transform';
 
 export type NormalizedPathNode = {
   id: string;
+  order: number;
   tag: string;
   d: string;
   fill?: string;
@@ -24,6 +25,7 @@ export function normalizeNodes(raw: RawSvgNode[]): NormalizedPathNode[] {
     const opacity = n.attrs.opacity ? Number.parseFloat(n.attrs.opacity) : undefined;
     const node: NormalizedPathNode = {
       id: n.id,
+      order: n.order,
       tag: n.tag,
       d,
       attrs: n.attrs

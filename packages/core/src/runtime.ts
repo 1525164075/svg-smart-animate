@@ -10,6 +10,8 @@ import { linear } from './easing';
 
 type Track = {
   pathEl: SVGPathElement;
+  order: number;
+  index: number;
   startD: string;
   endD: string;
   interp: (t: number) => string;
@@ -20,6 +22,7 @@ type Track = {
   startOpacity: number;
   endOpacity: number;
   dashLength?: number;
+  baseAttrs?: Record<string, string>;
 };
 
 function clamp01(t: number): number {
@@ -92,6 +95,43 @@ function deriveMaxSegmentLength(options?: AnimateSvgOptions): number {
   return Math.max(0.5, Math.min(10, v));
 }
 
+const STATIC_ATTRS = [
+  'stroke-width',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-opacity',
+  'fill-opacity',
+  'fill-rule',
+  'shape-rendering',
+  'vector-effect',
+  'clip-path',
+  'mask',
+  'filter',
+  'stroke-dasharray',
+  'stroke-dashoffset'
+];
+
+function applyStaticAttributes(el: SVGPathElement, attrs: Record<string, string> | undefined): void {
+  if (!attrs) return;
+  for (const key of STATIC_ATTRS) {
+    const value = attrs[key];
+    if (value !== undefined) el.setAttribute(key, value);
+  }
+}
+
+function extractDefs(svgText: string): SVGDefsElement | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgText, 'image/svg+xml');
+    const defs = doc.querySelector('defs');
+    if (!defs) return null;
+    return document.importNode(defs, true) as SVGDefsElement;
+  } catch {
+    return null;
+  }
+}
+
 export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const { container } = args;
   const options = args.options;
@@ -128,6 +168,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   svg.setAttribute('height', '100%');
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
+  const defs = extractDefs(args.endSvg);
+  if (defs) svg.appendChild(defs);
+
   const vbFrom = endNodes.length ? endNodes : startNodes;
   const vb = computeViewBox(vbFrom);
   svg.setAttribute('viewBox', `${vb.minX} ${vb.minY} ${vb.width} ${vb.height}`);
@@ -137,6 +180,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const maxSegmentLength = deriveMaxSegmentLength(options);
 
   const tracks: Track[] = [];
+  let trackIndex = 0;
 
   function mkPathEl(): SVGPathElement {
     return document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -144,11 +188,18 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   for (const p of match.pairs) {
     const isOpenPath = !/[zZ]\s*$/.test(p.end.d.trim());
-    const shouldDash = isAppearMode && isOpenPath && (p.end.fill === undefined || p.end.fill === 'none') && p.end.stroke;
+    const hasDashArray = p.end.attrs['stroke-dasharray'] !== undefined;
+    const shouldDash =
+      isAppearMode &&
+      isOpenPath &&
+      !hasDashArray &&
+      (p.end.fill === undefined || p.end.fill === 'none') &&
+      p.end.stroke;
     const startD = shouldDash ? p.end.d : p.start.d;
 
     const pathEl = mkPathEl();
-    svg.appendChild(pathEl);
+
+    applyStaticAttributes(pathEl, p.end.attrs);
 
     let dashLength: number | undefined;
     if (shouldDash) {
@@ -165,6 +216,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
     tracks.push({
       pathEl,
+      order: p.end.order,
+      index: trackIndex++,
       startD,
       endD: p.end.d,
       interp: shouldDash ? () => p.end.d : createPathInterpolator(startD, p.end.d, { maxSegmentLength }),
@@ -174,7 +227,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endStroke: p.end.stroke,
       startOpacity: p.start.opacity ?? 1,
       endOpacity: p.end.opacity ?? 1,
-      dashLength
+      dashLength,
+      baseAttrs: p.end.attrs
     });
   }
 
@@ -182,11 +236,17 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   for (const e of match.unmatchedEnd) {
     const appearStyle = options?.appearStyle ?? 'collapse-to-centroid';
     const isOpenPath = !/[zZ]\s*$/.test(e.d.trim());
-    const shouldDash = isOpenPath && (e.fill === undefined || e.fill === 'none') && e.stroke;
+    const hasDashArray = e.attrs['stroke-dasharray'] !== undefined;
+    const shouldDash =
+      isOpenPath &&
+      !hasDashArray &&
+      (e.fill === undefined || e.fill === 'none') &&
+      e.stroke;
     const startD = shouldDash ? e.d : makeAppearStartPath(e.d, { style: appearStyle });
 
     const pathEl = mkPathEl();
-    svg.appendChild(pathEl);
+
+    applyStaticAttributes(pathEl, e.attrs);
 
     let dashLength: number | undefined;
     if (shouldDash) {
@@ -203,6 +263,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
     tracks.push({
       pathEl,
+      order: e.order,
+      index: trackIndex++,
       startD,
       endD: e.d,
       interp: shouldDash ? () => e.d : createPathInterpolator(startD, e.d, { maxSegmentLength }),
@@ -212,7 +274,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endStroke: e.stroke,
       startOpacity: 0,
       endOpacity: e.opacity ?? 1,
-      dashLength
+      dashLength,
+      baseAttrs: e.attrs
     });
   }
 
@@ -221,10 +284,13 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const endD = makeAppearStartPath(s.d, { style: 'collapse-to-centroid' });
 
     const pathEl = mkPathEl();
-    svg.appendChild(pathEl);
+
+    applyStaticAttributes(pathEl, s.attrs);
 
     tracks.push({
       pathEl,
+      order: s.order,
+      index: trackIndex++,
       startD: s.d,
       endD,
       interp: createPathInterpolator(s.d, endD, { maxSegmentLength }),
@@ -233,9 +299,14 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       startStroke: s.stroke,
       endStroke: s.stroke,
       startOpacity: s.opacity ?? 1,
-      endOpacity: 0
+      endOpacity: 0,
+      baseAttrs: s.attrs
     });
   }
+
+  // Preserve original drawing order to avoid background shapes covering details.
+  const ordered = [...tracks].sort((a, b) => (a.order - b.order) || (a.index - b.index));
+  for (const tr of ordered) svg.appendChild(tr.pathEl);
 
   let rafId: number | null = null;
   let currentT = 0;
@@ -260,9 +331,6 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
         const dash = tr.dashLength;
         tr.pathEl.setAttribute('stroke-dasharray', String(dash));
         tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tt)));
-      } else {
-        tr.pathEl.removeAttribute('stroke-dasharray');
-        tr.pathEl.removeAttribute('stroke-dashoffset');
       }
 
       const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);

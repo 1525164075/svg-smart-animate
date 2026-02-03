@@ -107,14 +107,15 @@ export function matchNodes(
 
   const pairs: MatchedPair[] = [];
 
-  const endByKey = new Map<string, NormalizedPathNode>();
+  const endByKey = new Map<string, NormalizedPathNode[]>();
   const endUsed = new Set<NormalizedPathNode>();
 
   for (const e of end) {
     const k = stableKey(e);
     if (!k) continue;
-    // Keep first occurrence.
-    if (!endByKey.has(k)) endByKey.set(k, e);
+    const list = endByKey.get(k);
+    if (list) list.push(e);
+    else endByKey.set(k, [e]);
   }
 
   const startRemaining: NormalizedPathNode[] = [];
@@ -125,7 +126,8 @@ export function matchNodes(
       continue;
     }
 
-    const e = endByKey.get(k);
+    const list = endByKey.get(k);
+    const e = list && list.length ? list.shift()! : undefined;
     if (!e) {
       startRemaining.push(s);
       continue;
@@ -133,7 +135,6 @@ export function matchNodes(
 
     pairs.push({ start: s, end: e, cost: 0 });
     endUsed.add(e);
-    endByKey.delete(k);
   }
 
   const endRemaining = end.filter((e) => !endUsed.has(e));

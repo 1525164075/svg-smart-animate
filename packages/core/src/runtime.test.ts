@@ -76,4 +76,16 @@ describe('animateSvg runtime', () => {
     expect(path!.getAttribute('stroke-dasharray')).toBeTruthy();
     expect(path!.getAttribute('stroke-dashoffset')).toBeTruthy();
   });
+
+  it('single-SVG appear preserves existing dasharray', () => {
+    const endSvg = `<svg viewBox=\"0 0 100 100\"><path id=\"p\" d=\"M10 10 L90 10\" stroke=\"#000\" stroke-width=\"2\" stroke-dasharray=\"2 4\"/></svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({ endSvg, container, options: { duration: 100 } });
+
+    controller.seek(0);
+    const path = container.querySelector('path');
+    expect(path).toBeTruthy();
+    expect(path!.getAttribute('stroke-dasharray')).toBe('2 4');
+  });
 });

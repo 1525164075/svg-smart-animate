@@ -31,7 +31,7 @@ describe('parseSvgToNodes', () => {
     expect(nodes[0].id).toBe('visible');
   });
 
-  it('ignores nodes inside filter groups when opacity is low', () => {
+  it('keeps filtered nodes even when opacity is low', () => {
     const svgWithFilter = `
       <svg viewBox="0 0 100 100">
         <g filter="url(#blur)" opacity="0.1">
@@ -41,8 +41,7 @@ describe('parseSvgToNodes', () => {
       </svg>
     `;
     const nodes = parseSvgToNodes(svgWithFilter);
-    expect(nodes.length).toBe(1);
-    expect(nodes[0].id).toBe('main');
+    expect(nodes.length).toBe(2);
   });
 
   it('keeps filtered nodes when opacity is not low', () => {
@@ -58,7 +57,7 @@ describe('parseSvgToNodes', () => {
     expect(nodes[0].id).toBe('kept');
   });
 
-  it('drops filtered nodes when effective opacity is low', () => {
+  it('keeps filtered nodes even when opacity is low', () => {
     const svgWithFilter = `
       <svg viewBox="0 0 100 100">
         <g filter="url(#blur)" opacity="0.1">
@@ -67,6 +66,7 @@ describe('parseSvgToNodes', () => {
       </svg>
     `;
     const nodes = parseSvgToNodes(svgWithFilter);
-    expect(nodes.length).toBe(0);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].id).toBe('dropped');
   });
 });
