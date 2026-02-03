@@ -11,4 +11,23 @@ describe('parseSvgToNodes', () => {
     expect(nodes[0].tag).toBe('path');
     expect(nodes[0].attrs.d).toContain('M');
   });
+
+  it('ignores nodes inside defs/clipPath/mask/gradients', () => {
+    const svgWithDefs = `
+      <svg viewBox="0 0 100 100">
+        <defs>
+          <clipPath id="c">
+            <rect id="clip-rect" width="100" height="100" fill="white"/>
+          </clipPath>
+          <linearGradient id="g">
+            <stop offset="0" stop-color="#fff"/>
+          </linearGradient>
+        </defs>
+        <rect id="visible" x="0" y="0" width="10" height="10" fill="#000"/>
+      </svg>
+    `;
+    const nodes = parseSvgToNodes(svgWithDefs);
+    expect(nodes.length).toBe(1);
+    expect(nodes[0].id).toBe('visible');
+  });
 });

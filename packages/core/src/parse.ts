@@ -12,9 +12,23 @@ type SvgsonAst = {
   children: SvgsonAst[];
 };
 
-function walk(node: SvgsonAst, visitor: (n: SvgsonAst) => void): void {
+const BLOCKED_ANCESTORS = new Set([
+  'defs',
+  'clipPath',
+  'mask',
+  'filter',
+  'linearGradient',
+  'radialGradient',
+  'pattern',
+  'symbol'
+]);
+
+function walk(node: SvgsonAst, visitor: (n: SvgsonAst) => void, blocked: boolean): void {
+  const isBlocked = blocked || BLOCKED_ANCESTORS.has(node.name);
+  if (isBlocked) return;
+
   visitor(node);
-  for (const child of node.children) walk(child, visitor);
+  for (const child of node.children) walk(child, visitor, isBlocked);
 }
 
 export function parseSvgToNodes(svg: string): RawSvgNode[] {
@@ -44,7 +58,7 @@ export function parseSvgToNodes(svg: string): RawSvgNode[] {
       tag,
       attrs: { ...n.attributes }
     });
-  });
+  }, false);
 
   return nodes;
 }
