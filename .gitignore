@@ -1,0 +1,22 @@
+# deps
+node_modules/
+
+# build outputs
+dist/
+**/dist/
+
+# vite cache
+.vite/
+**/node_modules/.vite/
+
+# vitest
+coverage/
+
+# logs
+*.log
+
+# TS build info
+*.tsbuildinfo
+
+# OS
+.DS_Store
