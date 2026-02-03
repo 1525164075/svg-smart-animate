@@ -104,6 +104,25 @@ a {
   align-items: center;
 }
 
+.helpTip {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  padding: 0;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.helpTip:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .control {
   display: inline-flex;
   align-items: center;

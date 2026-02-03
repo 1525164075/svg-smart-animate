@@ -64,6 +64,15 @@ leftHeader.innerHTML = `<strong>输入</strong>`;
 const controls = el('div', 'controls');
 leftHeader.appendChild(controls);
 
+const helpTip = el('button', 'helpTip');
+helpTip.type = 'button';
+helpTip.setAttribute(
+  'title',
+  '细分参数：控制路径切分密度。数值越大分段越少更省性能，数值越小更平滑但更耗性能。'
+);
+helpTip.textContent = '?';
+leftHeader.appendChild(helpTip);
+
 const durationWrap = el('label', 'control');
 durationWrap.innerHTML = `时长(ms) <input type="number" min="50" step="50" value="700" />`;
 controls.appendChild(durationWrap);
