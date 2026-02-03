@@ -18,6 +18,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "flubber": "^0.4.2",
     "munkres-js": "^1.2.2",
     "svg-path-bounds": "^1.0.2",
     "svgpath": "^2.6.0",
