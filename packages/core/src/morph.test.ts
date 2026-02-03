@@ -31,4 +31,13 @@ describe('morph', () => {
     const mid = interp(0.5);
     expect(/z/i.test(mid)).toBe(false);
   });
+
+  it('uses d3 path interpolation when command signatures match', () => {
+    const from = 'M0 0 L10 0 L20 0';
+    const to = 'M0 10 L10 10 L20 10';
+    const interp = createPathInterpolator(from, to, { closed: false });
+    const mid = interp(0.5);
+    expect(mid).toMatch(/^M/);
+    expect(/z/i.test(mid)).toBe(false);
+  });
 });

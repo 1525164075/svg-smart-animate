@@ -1,4 +1,5 @@
 import { interpolate } from 'flubber';
+import { interpolatePath } from 'd3-interpolate-path';
 
 export type MorphOptions = {
   /**
@@ -15,7 +16,8 @@ export function createPathInterpolator(fromD: string, toD: string, options?: Mor
   const flubberOptions: { maxSegmentLength?: number; closed?: boolean } = {};
   if (options?.maxSegmentLength !== undefined) flubberOptions.maxSegmentLength = options.maxSegmentLength;
   if (options?.closed !== undefined) flubberOptions.closed = options.closed;
-  const base = interpolate(fromD, toD, flubberOptions);
+  const useD3 = typeof interpolatePath === 'function' && !options?.closed && pathCommandSignature(fromD) === pathCommandSignature(toD);
+  const base = useD3 ? interpolatePath(fromD, toD) : interpolate(fromD, toD, flubberOptions);
   if (options?.closed === false) {
     return (t: number) => {
       const d = base(t);
@@ -23,4 +25,8 @@ export function createPathInterpolator(fromD: string, toD: string, options?: Mor
     };
   }
   return base;
+}
+
+function pathCommandSignature(d: string): string {
+  return d.replace(/[\s,]+/g, '').replace(/[0-9.+-]/g, '').replace(/[eE]/g, '');
 }
