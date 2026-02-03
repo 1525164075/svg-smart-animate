@@ -188,6 +188,23 @@ textarea {
   padding: 14px;
 }
 
+.miniPreview {
+  width: 100%;
+  height: 180px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.18);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.miniPreview svg {
+  width: 100%;
+  height: 100%;
+}
+
 .preview {
   width: 100%;
   height: 520px;

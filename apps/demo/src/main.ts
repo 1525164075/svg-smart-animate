@@ -93,6 +93,8 @@ startPanel.innerHTML = `<div style="padding:10px 0 8px; color: var(--muted); fon
 const startText = el('textarea');
 startText.value = sampleStart;
 startPanel.appendChild(startText);
+const startPreview = el('div', 'miniPreview');
+startPanel.appendChild(startPreview);
 
 const endPanel = el('div');
 split.appendChild(endPanel);
@@ -100,6 +102,8 @@ endPanel.innerHTML = `<div style="padding:10px 0 8px; color: var(--muted); font-
 const endText = el('textarea');
 endText.value = sampleEnd;
 endPanel.appendChild(endText);
+const endPreview = el('div', 'miniPreview');
+endPanel.appendChild(endPreview);
 
 const right = el('div', 'card');
 container.appendChild(right);
@@ -119,6 +123,35 @@ errorBox.style.display = 'none';
 right.appendChild(errorBox);
 
 let controller: AnimateController | null = null;
+
+function renderRawSvg(target: HTMLDivElement, svgText: string) {
+  target.innerHTML = '';
+  const trimmed = svgText.trim();
+  if (!trimmed) {
+    target.innerHTML = `<div style="color: var(--muted); font-size: 12px;">（空）</div>`;
+    return;
+  }
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(trimmed, 'image/svg+xml');
+    const svg = doc.documentElement;
+    if (!svg || svg.nodeName.toLowerCase() !== 'svg') throw new Error('不是有效的 SVG 根节点');
+
+    // Basic sanitization for local demo.
+    svg.querySelectorAll('script, foreignObject').forEach((n) => n.remove());
+
+    const imported = document.importNode(svg, true) as SVGSVGElement;
+    imported.setAttribute('width', '100%');
+    imported.setAttribute('height', '100%');
+
+    target.appendChild(imported);
+  } catch (e) {
+    target.innerHTML = `<div style="color: var(--danger); font-family: var(--mono); font-size: 12px; padding: 10px;">${
+      e instanceof Error ? e.message : String(e)
+    }</div>`;
+  }
+}
 
 function setError(err: unknown) {
   if (!err) {
@@ -173,5 +206,10 @@ playBtn.addEventListener('click', () => controller?.play());
 pauseBtn.addEventListener('click', () => controller?.pause());
 resetBtn.addEventListener('click', () => controller?.seek(0));
 
+startText.addEventListener('input', () => renderRawSvg(startPreview, startText.value));
+endText.addEventListener('input', () => renderRawSvg(endPreview, endText.value));
+
 // Initial
+renderRawSvg(startPreview, startText.value);
+renderRawSvg(endPreview, endText.value);
 run({ autoplay: true });
