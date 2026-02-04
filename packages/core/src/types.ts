@@ -37,6 +37,30 @@ export type AnimateSvgOptions = {
   orbitDebug?: boolean; // default: false
   orbitSnap?: boolean; // default: true
   motionProfile?: MotionProfile; // default: uniform
+  onMatchComputed?: (info: MatchDebugInfo) => void;
+};
+
+export type MatchDebugNode = {
+  id: string;
+  tag: string;
+  order: number;
+  classList?: string[];
+  pathKey?: string;
+  fill?: string;
+  stroke?: string;
+  bbox: { cx: number; cy: number; width: number; height: number; area: number };
+};
+
+export type MatchDebugPair = {
+  start: MatchDebugNode;
+  end: MatchDebugNode;
+  cost: number;
+};
+
+export type MatchDebugInfo = {
+  pairs: MatchDebugPair[];
+  unmatchedStart: MatchDebugNode[];
+  unmatchedEnd: MatchDebugNode[];
 };
 
 export type AnimateSvgArgs = {

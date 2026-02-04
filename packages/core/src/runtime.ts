@@ -1,4 +1,4 @@
-import type { AnimateController, AnimateSvgArgs, AnimateSvgOptions, GsapEasePreset } from './types';
+import type { AnimateController, AnimateSvgArgs, AnimateSvgOptions, GsapEasePreset, MatchDebugInfo, MatchDebugNode } from './types';
 import { parseSvgToNodes } from './parse';
 import { normalizeNodes, type NormalizedPathNode } from './normalize';
 import { matchNodes } from './match';
@@ -183,6 +183,20 @@ function computeBBox(nodes: NormalizedPathNode[]): {
   const width = maxX - minX;
   const height = maxY - minY;
   return { minX, minY, maxX, maxY, width, height, area: width * height };
+}
+
+function toDebugNode(n: NormalizedPathNode): MatchDebugNode {
+  const b = bboxFromPathD(n.d);
+  return {
+    id: n.id,
+    tag: n.tag,
+    order: n.order,
+    classList: n.classList,
+    pathKey: n.pathKey,
+    fill: n.fill,
+    stroke: n.stroke,
+    bbox: { cx: b.cx, cy: b.cy, width: b.width, height: b.height, area: b.area }
+  };
 }
 
 const LAYER_COUNT = 3;
@@ -386,6 +400,18 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   // Build tracks: matched pairs + appear/disappear fallbacks.
   const match = matchNodes(startNodes, animEndNodes, options?.matchWeights);
+  if (options?.onMatchComputed) {
+    const info: MatchDebugInfo = {
+      pairs: match.pairs.map((p) => ({
+        start: toDebugNode(p.start),
+        end: toDebugNode(p.end),
+        cost: p.cost
+      })),
+      unmatchedStart: match.unmatchedStart.map(toDebugNode),
+      unmatchedEnd: match.unmatchedEnd.map(toDebugNode)
+    };
+    options.onMatchComputed(info);
+  }
 
   // Reset container.
   container.innerHTML = '';

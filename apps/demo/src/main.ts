@@ -1,5 +1,5 @@
 import './styles.css';
-import { animateSvg, easeInOutCubic, linear, type AnimateController } from '@svg-smart-animate/core';
+import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo } from '@svg-smart-animate/core';
 
 const sampleStart = `<svg viewBox="0 0 100 100">
   <rect id="shape" x="12" y="18" width="32" height="24" rx="6" fill="#7CFCFF"/>
@@ -143,6 +143,20 @@ motionWrap.appendChild(motionHelpWrap);
 controls.appendChild(motionWrap);
 const motionSelect = motionWrap.querySelector<HTMLSelectElement>('select')!;
 
+const matchDebugWrap = el('label', 'control');
+matchDebugWrap.innerHTML = `匹配面板 <input type="checkbox" checked />`;
+const matchDebugHelpWrap = el('span', 'tooltipWrap');
+const matchDebugHelpBtn = el('button', 'helpTipSmall');
+matchDebugHelpBtn.type = 'button';
+matchDebugHelpBtn.textContent = '?';
+const matchDebugHelpTip = el('div', 'tooltip');
+matchDebugHelpTip.textContent = '展示 start/end 形状匹配关系与成本，便于排查错配。';
+matchDebugHelpWrap.appendChild(matchDebugHelpBtn);
+matchDebugHelpWrap.appendChild(matchDebugHelpTip);
+matchDebugWrap.appendChild(matchDebugHelpWrap);
+controls.appendChild(matchDebugWrap);
+const matchDebugInput = matchDebugWrap.querySelector<HTMLInputElement>('input')!;
+
 const layerWrap = el('label', 'control');
 layerWrap.innerHTML = `分层延迟(ms) <input type="number" min="0" step="10" value="70" />`;
 controls.appendChild(layerWrap);
@@ -253,7 +267,12 @@ const errorBox = el('div', 'error');
 errorBox.style.display = 'none';
 right.appendChild(errorBox);
 
+const matchPanel = el('div', 'matchPanel');
+matchPanel.style.display = 'none';
+right.appendChild(matchPanel);
+
 let controller: AnimateController | null = null;
+let lastMatchInfo: MatchDebugInfo | null = null;
 
 function setupTooltip(btn: HTMLButtonElement, tip: HTMLDivElement) {
   btn.addEventListener('click', (e) => {
@@ -274,6 +293,7 @@ setupTooltip(orbitHelpBtn, orbitHelpTip);
 setupTooltip(orbitSnapHelpBtn, orbitSnapHelpTip);
 setupTooltip(orbitDebugHelpBtn, orbitDebugHelpTip);
 setupTooltip(motionHelpBtn, motionHelpTip);
+setupTooltip(matchDebugHelpBtn, matchDebugHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
   target.innerHTML = '';
@@ -314,10 +334,54 @@ function setError(err: unknown) {
   errorBox.textContent = err instanceof Error ? err.stack || err.message : String(err);
 }
 
+function labelForNode(node: MatchDebugInfo['pairs'][number]['start']): string {
+  const id = node.id || '';
+  const path = node.pathKey ? node.pathKey.split('/').slice(-1)[0] : '';
+  const cls = node.classList && node.classList.length ? node.classList[0] : '';
+  return id || path || cls || `${node.tag}@${node.order}`;
+}
+
+function renderMatchPanel(info: MatchDebugInfo | null) {
+  if (!info || !matchDebugInput.checked) {
+    matchPanel.style.display = 'none';
+    matchPanel.innerHTML = '';
+    return;
+  }
+
+  const rows = info.pairs
+    .map((p) => {
+      const startLabel = labelForNode(p.start);
+      const endLabel = labelForNode(p.end);
+      const cost = p.cost.toFixed(3);
+      return `<div class="matchRow"><span>${startLabel}</span><span class="arrow">→</span><span>${endLabel}</span><span class="cost">${cost}</span></div>`;
+    })
+    .join('');
+
+  const umStart = info.unmatchedStart.map((n) => `<span>${labelForNode(n)}</span>`).join('');
+  const umEnd = info.unmatchedEnd.map((n) => `<span>${labelForNode(n)}</span>`).join('');
+
+  matchPanel.innerHTML = `
+    <div class="matchHeader">
+      <strong>匹配可视化</strong>
+      <span>${info.pairs.length} 对 / 未匹配 ${info.unmatchedStart.length}+${info.unmatchedEnd.length}</span>
+    </div>
+    <div class="matchBody">
+      ${rows || `<div class="matchEmpty">（无匹配对）</div>`}
+    </div>
+    <div class="matchFooter">
+      <div><em>Start 未匹配:</em> ${umStart || '无'}</div>
+      <div><em>End 未匹配:</em> ${umEnd || '无'}</div>
+    </div>
+  `;
+  matchPanel.style.display = 'block';
+}
+
 function run({ autoplay }: { autoplay: boolean }) {
   setError(null);
   controller?.destroy();
   controller = null;
+  lastMatchInfo = null;
+  renderMatchPanel(null);
 
   const endSvg = endText.value.trim();
   const startSvg = startText.value.trim();
@@ -337,6 +401,7 @@ function run({ autoplay }: { autoplay: boolean }) {
   const gsapEasePreset = gsapEaseSelect.value as 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
   const motionProfile = motionSelect.value as 'uniform' | 'focus-first' | 'detail-first';
+  const matchDebug = matchDebugInput.checked;
   const orbitMode = orbitModeSelect.value as 'off' | 'auto' | 'auto+manual';
   const orbitDirection = orbitDirSelect.value as 'shortest' | 'cw' | 'ccw';
   const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
@@ -364,7 +429,13 @@ function run({ autoplay }: { autoplay: boolean }) {
         orbitTolerance,
         orbitSnap,
         orbitDebug,
-        layerStrategy: 'area'
+        layerStrategy: 'area',
+        onMatchComputed: matchDebug
+          ? (info) => {
+              lastMatchInfo = info;
+              renderMatchPanel(info);
+            }
+          : undefined
       }
     });
 
@@ -374,6 +445,10 @@ function run({ autoplay }: { autoplay: boolean }) {
     setError(e);
   }
 }
+
+matchDebugInput.addEventListener('change', () => {
+  renderMatchPanel(lastMatchInfo);
+});
 
 runBtn.addEventListener('click', () => run({ autoplay: true }));
 playBtn.addEventListener('click', () => controller?.play());
