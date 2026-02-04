@@ -184,6 +184,39 @@ describe('animateSvg runtime', () => {
     expect(r).toBeLessThan(120);
   });
 
+  it('propertyCurves overrides propertyTiming for color', () => {
+    const startSvg = `<svg viewBox="0 0 10 10">
+      <path d="M1 1 H3 V3 H1 Z" fill="#000"/>
+      <path d="M8 8 H9 V9 H8 Z" fill="#000"/>
+    </svg>`;
+    const endSvg = `<svg viewBox="0 0 10 10">
+      <path d="M7 7 H9 V9 H7 Z" fill="#fff"/>
+      <path d="M8 8 H9 V9 H8 Z" fill="#000"/>
+    </svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: {
+        duration: 100,
+        propertyTiming: 'shape-first',
+        propertyCurves: { color: { x1: 0, y1: 0, x2: 1, y2: 1 } },
+        layerStagger: 0,
+        intraStagger: 0
+      }
+    });
+
+    controller.seek(0.5);
+    const allPaths = Array.from(container.querySelectorAll('path'));
+    const path = allPaths.find((p) => bboxFromPathD(p.getAttribute('d') || '').area > 3)!;
+    const fill = path.getAttribute('fill') || '';
+    const colorMatch = fill.match(/rgba\((\d+),\s*(\d+),\s*(\d+)/i);
+    const r = colorMatch ? Number.parseInt(colorMatch[1]!, 10) : 0;
+    expect(r).toBeGreaterThan(120);
+  });
+
   it('applies group delay by class', () => {
     const startSvg = `<svg viewBox="0 0 10 10">
       <rect class="g1" x="1" y="1" width="2" height="2" fill="#ff0000"/>

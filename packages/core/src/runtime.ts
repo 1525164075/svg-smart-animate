@@ -17,6 +17,7 @@ import {
 import { svgPathProperties } from 'svg-path-properties';
 import { bboxFromPathD, parseColorToRgba, type Rgba } from './geom';
 import { linear } from './easing';
+import { evalBezier } from './bezier';
 import { gsap } from 'gsap';
 
 type Track = {
@@ -465,6 +466,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const orbitSnap = options?.orbitSnap ?? true;
   const motionProfile = options?.motionProfile ?? 'uniform';
   const propertyTiming = options?.propertyTiming ?? 'balanced';
+  const propertyCurves = options?.propertyCurves;
   const groupStagger = Math.max(0, options?.groupStagger ?? 0);
   const groupStrategy = options?.groupStrategy ?? 'auto';
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
@@ -976,10 +978,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const t = clamp01(local);
     const base = applyMotionProfile(t, tr.importance, motionProfile);
     const timing = resolvePropertyTiming(base, propertyTiming);
-    const tShape = timing.shape;
-    const tColor = timing.color;
-    const tOpacity = timing.opacity;
-    const tStroke = timing.stroke;
+    const tShape = propertyCurves?.shape ? evalBezier(base, propertyCurves.shape) : timing.shape;
+    const tColor = propertyCurves?.color ? evalBezier(base, propertyCurves.color) : timing.color;
+    const tOpacity = propertyCurves?.opacity ? evalBezier(base, propertyCurves.opacity) : timing.opacity;
+    const tStroke = propertyCurves?.stroke ? evalBezier(base, propertyCurves.stroke) : timing.stroke;
 
     let d = tShape <= 0 ? tr.startD : tShape >= 1 ? tr.endD : tr.interp(tShape);
 
