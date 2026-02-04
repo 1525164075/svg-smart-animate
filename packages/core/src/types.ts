@@ -18,6 +18,7 @@ export type GsapEasePreset = 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetri
 export type OrbitMode = 'off' | 'auto' | 'auto+manual';
 export type OrbitDirection = 'cw' | 'ccw' | 'shortest';
 export type MotionProfile = 'uniform' | 'focus-first' | 'detail-first';
+export type PropertyTiming = 'balanced' | 'shape-first' | 'color-lag';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -38,6 +39,7 @@ export type AnimateSvgOptions = {
   orbitSnap?: boolean; // default: true
   motionProfile?: MotionProfile; // default: uniform
   onMatchComputed?: (info: MatchDebugInfo) => void;
+  propertyTiming?: PropertyTiming; // default: balanced
 };
 
 export type MatchDebugNode = {

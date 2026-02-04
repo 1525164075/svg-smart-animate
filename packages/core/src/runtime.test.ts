@@ -154,4 +154,33 @@ describe('animateSvg runtime', () => {
     const clipAttr = svg.querySelector('path')!.getAttribute('clip-path')!;
     expect(clipAttr).not.toBe('url(#c1)');
   });
+
+  it('property timing profile lags color behind shape', () => {
+    const startSvg = `<svg viewBox="0 0 10 10">
+      <circle cx="9" cy="1" r="1" stroke="#000" fill="none"/>
+      <rect id="a" x="1" y="1" width="2" height="2" fill="#000"/>
+    </svg>`;
+    const endSvg = `<svg viewBox="0 0 10 10">
+      <circle cx="9" cy="1" r="1" stroke="#000" fill="none"/>
+      <rect id="a" x="7" y="7" width="2" height="2" fill="#fff"/>
+    </svg>`;
+    const container = document.createElement('div');
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: { duration: 100, propertyTiming: 'shape-first', layerStagger: 0, intraStagger: 0 }
+    });
+    controller.seek(0.5);
+    const paths = Array.from(container.querySelectorAll('path'));
+    const path = paths.find((p) => (p.getAttribute('fill') || '').toLowerCase() !== 'none')!;
+    const d = path.getAttribute('d') || '';
+    const b = bboxFromPathD(d);
+    expect(b.cx).toBeGreaterThan(3);
+
+    const fill = path.getAttribute('fill') || '';
+    const colorMatch = fill.match(/rgba\((\d+),\s*(\d+),\s*(\d+)/i);
+    const r = colorMatch ? Number.parseInt(colorMatch[1]!, 10) : 0;
+    expect(r).toBeLessThan(120);
+  });
 });

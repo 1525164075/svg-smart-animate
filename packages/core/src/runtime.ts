@@ -150,6 +150,30 @@ function applyMotionProfile(t: number, importance: number, profile: string | und
   return t;
 }
 
+function resolvePropertyTiming(t: number, mode: string | undefined): { shape: number; color: number; opacity: number; stroke: number } {
+  const clamped = clamp01(t);
+  if (!mode || mode === 'balanced') {
+    return { shape: clamped, color: clamped, opacity: clamped, stroke: clamped };
+  }
+  if (mode === 'shape-first') {
+    return {
+      shape: clamped,
+      color: clamp01(clamped * 0.6),
+      opacity: clamp01(clamped * 1.1),
+      stroke: clamp01(clamped * 0.7)
+    };
+  }
+  if (mode === 'color-lag') {
+    return {
+      shape: clamp01(clamped * 0.9),
+      color: clamp01(clamped * 0.5),
+      opacity: clamp01(clamped * 1.05),
+      stroke: clamp01(clamped * 0.6)
+    };
+  }
+  return { shape: clamped, color: clamped, opacity: clamped, stroke: clamped };
+}
+
 function computeViewBox(nodes: NormalizedPathNode[]): { minX: number; minY: number; width: number; height: number } {
   if (nodes.length === 0) return { minX: 0, minY: 0, width: 100, height: 100 };
 
@@ -424,6 +448,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const orbitDebug = options?.orbitDebug ?? false;
   const orbitSnap = options?.orbitSnap ?? true;
   const motionProfile = options?.motionProfile ?? 'uniform';
+  const propertyTiming = options?.propertyTiming ?? 'balanced';
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -905,19 +930,25 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   function renderTrack(tr: Track, local: number): void {
     const t = clamp01(local);
-    const tt = applyMotionProfile(t, tr.importance, motionProfile);
-    let d = tt <= 0 ? tr.startD : tt >= 1 ? tr.endD : tr.interp(tt);
+    const base = applyMotionProfile(t, tr.importance, motionProfile);
+    const timing = resolvePropertyTiming(base, propertyTiming);
+    const tShape = timing.shape;
+    const tColor = timing.color;
+    const tOpacity = timing.opacity;
+    const tStroke = timing.stroke;
+
+    let d = tShape <= 0 ? tr.startD : tShape >= 1 ? tr.endD : tr.interp(tShape);
 
     if (tr.orbit) {
       const box = bboxFromPathD(d);
-      const p = orbitPoint(tr.orbit, tt);
+      const p = orbitPoint(tr.orbit, tShape);
       d = translatePath(d, p.x - box.cx, p.y - box.cy);
     }
 
     tr.pathEl.setAttribute('d', d);
 
-    const fill = lerpColor(tr.startFill, tr.endFill, tt) ?? tr.endFill ?? tr.startFill;
-    const stroke = lerpColor(tr.startStroke, tr.endStroke, tt) ?? tr.endStroke ?? tr.startStroke;
+    const fill = lerpColor(tr.startFill, tr.endFill, tColor) ?? tr.endFill ?? tr.startFill;
+    const stroke = lerpColor(tr.startStroke, tr.endStroke, tColor) ?? tr.endStroke ?? tr.startStroke;
 
     // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
     // when BOTH are missing to avoid accidentally filling stroke-only icons.
@@ -928,19 +959,19 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     if (tr.dashLength !== undefined && stroke) {
       const dash = tr.dashLength;
       tr.pathEl.setAttribute('stroke-dasharray', String(dash));
-      tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tt)));
+      tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tShape)));
     }
 
-    const strokeWidth = lerpOptional(tr.startStrokeWidth, tr.endStrokeWidth, tt);
+    const strokeWidth = lerpOptional(tr.startStrokeWidth, tr.endStrokeWidth, tStroke);
     if (strokeWidth != null) tr.pathEl.setAttribute('stroke-width', String(strokeWidth));
 
-    const strokeOpacity = lerpOptional(tr.startStrokeOpacity, tr.endStrokeOpacity, tt);
+    const strokeOpacity = lerpOptional(tr.startStrokeOpacity, tr.endStrokeOpacity, tStroke);
     if (strokeOpacity != null) tr.pathEl.setAttribute('stroke-opacity', String(clamp01(strokeOpacity)));
 
-    const fillOpacity = lerpOptional(tr.startFillOpacity, tr.endFillOpacity, tt);
+    const fillOpacity = lerpOptional(tr.startFillOpacity, tr.endFillOpacity, tOpacity);
     if (fillOpacity != null) tr.pathEl.setAttribute('fill-opacity', String(clamp01(fillOpacity)));
 
-    const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);
+    const opacity = lerp(tr.startOpacity, tr.endOpacity, tOpacity);
     tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
   }
 
