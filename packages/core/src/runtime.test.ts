@@ -137,4 +137,21 @@ describe('animateSvg runtime', () => {
     expect(b.cx).toBeGreaterThan(62);
     expect(b.cy).toBeGreaterThan(62);
   });
+
+  it('rewrites mask/clip references to animated defs', () => {
+    const startSvg = `<svg viewBox="0 0 10 10">
+      <defs><clipPath id="c1"><circle cx="5" cy="5" r="2"/></clipPath></defs>
+      <rect id="box" clip-path="url(#c1)" x="0" y="0" width="10" height="10" fill="red"/>
+    </svg>`;
+    const endSvg = `<svg viewBox="0 0 10 10">
+      <defs><clipPath id="c1"><circle cx="5" cy="5" r="4"/></clipPath></defs>
+      <rect id="box" clip-path="url(#c1)" x="0" y="0" width="10" height="10" fill="red"/>
+    </svg>`;
+
+    const container = document.createElement('div');
+    animateSvg({ startSvg, endSvg, container, options: { duration: 100 } });
+    const svg = container.querySelector('svg')!;
+    const clipAttr = svg.querySelector('path')!.getAttribute('clip-path')!;
+    expect(clipAttr).not.toBe('url(#c1)');
+  });
 });

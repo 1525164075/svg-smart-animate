@@ -4,6 +4,7 @@ import { normalizeNodes, type NormalizedPathNode } from './normalize';
 import { matchNodes } from './match';
 import { createPathInterpolator } from './morph';
 import { makeAppearStartPath } from './appear';
+import { extractMaskClipDefs, type DefsShape } from './defs';
 import {
   collectOrbitCandidates,
   orbitPoint,
@@ -46,6 +47,26 @@ type Track = {
   startAttrs?: Record<string, string>;
   endAttrs?: Record<string, string>;
   orbit?: OrbitBinding;
+};
+
+type DefTrack = {
+  pathEl: SVGPathElement;
+  startD: string;
+  endD: string;
+  interp: (t: number) => string;
+  startFill: string | undefined;
+  endFill: string | undefined;
+  startStroke: string | undefined;
+  endStroke: string | undefined;
+  startStrokeWidth?: number;
+  endStrokeWidth?: number;
+  startStrokeOpacity?: number;
+  endStrokeOpacity?: number;
+  startFillOpacity?: number;
+  endFillOpacity?: number;
+  startOpacity: number;
+  endOpacity: number;
+  baseAttrs?: Record<string, string>;
 };
 
 function clamp01(t: number): number {
@@ -336,6 +357,24 @@ function extractDefs(svgText: string): SVGDefsElement | null {
   }
 }
 
+function rewriteDefRef(value: string | undefined, map: Map<string, string>): string | undefined {
+  if (!value) return undefined;
+  const match = value.match(/url\\(#([^)]+)\\)/);
+  if (!match) return value;
+  const id = match[1]!;
+  const next = map.get(id);
+  if (!next) return value;
+  return `url(#${next})`;
+}
+
+function applyDefAttrs(el: SVGElement, attrs: Record<string, string> | undefined): void {
+  if (!attrs) return;
+  for (const [key, value] of Object.entries(attrs)) {
+    if (key === 'id') continue;
+    if (value != null) el.setAttribute(key, value);
+  }
+}
+
 export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const { container } = args;
   const options = args.options;
@@ -437,6 +476,130 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   const maxSegmentLength = deriveMaxSegmentLength(options);
 
+  const defsStart = args.startSvg ? extractMaskClipDefs(args.startSvg) : { masks: new Map(), clips: new Map() };
+  const defsEnd = extractMaskClipDefs(args.endSvg);
+  const clipIdMap = new Map<string, string>();
+  const maskIdMap = new Map<string, string>();
+  const defTracks: DefTrack[] = [];
+  let defCounter = 0;
+
+  const animatedDefs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+  svg.appendChild(animatedDefs);
+
+  const buildDefTracks = (startNodes: NormalizedPathNode[], endNodes: NormalizedPathNode[]): Omit<DefTrack, 'pathEl'>[] => {
+    const out: Omit<DefTrack, 'pathEl'>[] = [];
+    const defMatch = matchNodes(startNodes, endNodes, options?.matchWeights);
+    const appearStyle = options?.appearStyle ?? 'collapse-to-centroid';
+
+    for (const p of defMatch.pairs) {
+      const startD = p.start.d;
+      const endD = p.end.d;
+      const isClosed = isClosedPath(startD) && isClosedPath(endD);
+      out.push({
+        startD,
+        endD,
+        interp: createPathInterpolator(startD, endD, {
+          maxSegmentLength,
+          closed: isClosed,
+          engine: options?.morphEngine
+        }),
+        startFill: p.start.fill,
+        endFill: p.end.fill,
+        startStroke: p.start.stroke,
+        endStroke: p.end.stroke,
+        startStrokeWidth: parseNumberAttr(p.start.attrs, 'stroke-width'),
+        endStrokeWidth: parseNumberAttr(p.end.attrs, 'stroke-width'),
+        startStrokeOpacity: parseNumberAttr(p.start.attrs, 'stroke-opacity'),
+        endStrokeOpacity: parseNumberAttr(p.end.attrs, 'stroke-opacity'),
+        startFillOpacity: parseNumberAttr(p.start.attrs, 'fill-opacity'),
+        endFillOpacity: parseNumberAttr(p.end.attrs, 'fill-opacity'),
+        startOpacity: p.start.opacity ?? 1,
+        endOpacity: p.end.opacity ?? 1,
+        baseAttrs: p.end.attrs
+      });
+    }
+
+    for (const e of defMatch.unmatchedEnd) {
+      const startD = makeAppearStartPath(e.d, { style: appearStyle });
+      const isClosed = isClosedPath(startD) && isClosedPath(e.d);
+      out.push({
+        startD,
+        endD: e.d,
+        interp: createPathInterpolator(startD, e.d, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
+        startFill: e.fill,
+        endFill: e.fill,
+        startStroke: e.stroke,
+        endStroke: e.stroke,
+        startStrokeWidth: parseNumberAttr(e.attrs, 'stroke-width'),
+        endStrokeWidth: parseNumberAttr(e.attrs, 'stroke-width'),
+        startStrokeOpacity: parseNumberAttr(e.attrs, 'stroke-opacity'),
+        endStrokeOpacity: parseNumberAttr(e.attrs, 'stroke-opacity'),
+        startFillOpacity: parseNumberAttr(e.attrs, 'fill-opacity'),
+        endFillOpacity: parseNumberAttr(e.attrs, 'fill-opacity'),
+        startOpacity: 0,
+        endOpacity: e.opacity ?? 1,
+        baseAttrs: e.attrs
+      });
+    }
+
+    for (const s of defMatch.unmatchedStart) {
+      const endD = makeAppearStartPath(s.d, { style: 'collapse-to-centroid' });
+      const isClosed = isClosedPath(s.d) && isClosedPath(endD);
+      out.push({
+        startD: s.d,
+        endD,
+        interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
+        startFill: s.fill,
+        endFill: s.fill,
+        startStroke: s.stroke,
+        endStroke: s.stroke,
+        startStrokeWidth: parseNumberAttr(s.attrs, 'stroke-width'),
+        endStrokeWidth: parseNumberAttr(s.attrs, 'stroke-width'),
+        startStrokeOpacity: parseNumberAttr(s.attrs, 'stroke-opacity'),
+        endStrokeOpacity: parseNumberAttr(s.attrs, 'stroke-opacity'),
+        startFillOpacity: parseNumberAttr(s.attrs, 'fill-opacity'),
+        endFillOpacity: parseNumberAttr(s.attrs, 'fill-opacity'),
+        startOpacity: s.opacity ?? 1,
+        endOpacity: 0,
+        baseAttrs: s.attrs
+      });
+    }
+
+    return out;
+  };
+
+  const renderAnimatedDef = (kind: 'clipPath' | 'mask', id: string, startDef?: DefsShape, endDef?: DefsShape) => {
+    const newId = `__ssa_${kind}_${id}_${defCounter++}`;
+    const defEl = document.createElementNS('http://www.w3.org/2000/svg', kind);
+    defEl.setAttribute('id', newId);
+    applyDefAttrs(defEl, endDef?.attrs ?? startDef?.attrs);
+    animatedDefs.appendChild(defEl);
+
+    const startNodes = startDef?.nodes ?? [];
+    const endNodes = endDef?.nodes ?? [];
+    const inits = buildDefTracks(startNodes, endNodes);
+    for (const init of inits) {
+      const pathEl = mkPathEl();
+      applyStaticAttributes(pathEl, init.baseAttrs);
+      defEl.appendChild(pathEl);
+      defTracks.push({ ...init, pathEl });
+    }
+
+    return newId;
+  };
+
+  const clipIds = new Set<string>([...defsStart.clips.keys(), ...defsEnd.clips.keys()]);
+  for (const id of clipIds) {
+    const newId = renderAnimatedDef('clipPath', id, defsStart.clips.get(id), defsEnd.clips.get(id));
+    clipIdMap.set(id, newId);
+  }
+
+  const maskIds = new Set<string>([...defsStart.masks.keys(), ...defsEnd.masks.keys()]);
+  for (const id of maskIds) {
+    const newId = renderAnimatedDef('mask', id, defsStart.masks.get(id), defsEnd.masks.get(id));
+    maskIdMap.set(id, newId);
+  }
+
   const tracks: Track[] = [];
   let trackIndex = 0;
 
@@ -450,6 +613,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const pathEl = mkPathEl();
       pathEl.setAttribute('d', n.d);
       applyStaticAttributes(pathEl, n.attrs);
+      const bgClip = rewriteDefRef(n.attrs['clip-path'], clipIdMap);
+      if (bgClip) pathEl.setAttribute('clip-path', bgClip);
+      const bgMask = rewriteDefRef(n.attrs['mask'], maskIdMap);
+      if (bgMask) pathEl.setAttribute('mask', bgMask);
       const fillAttr = n.fill ?? 'none';
       pathEl.setAttribute('fill', fillAttr);
       pathEl.setAttribute('stroke', n.stroke ?? 'none');
@@ -475,6 +642,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const pathEl = mkPathEl();
 
     applyStaticAttributes(pathEl, p.end.attrs);
+    const clipRef = rewriteDefRef(p.end.attrs['clip-path'], clipIdMap);
+    if (clipRef) pathEl.setAttribute('clip-path', clipRef);
+    const maskRef = rewriteDefRef(p.end.attrs['mask'], maskIdMap);
+    if (maskRef) pathEl.setAttribute('mask', maskRef);
 
     let dashLength: number | undefined;
     if (shouldDash) {
@@ -550,6 +721,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const pathEl = mkPathEl();
 
     applyStaticAttributes(pathEl, e.attrs);
+    const clipRef = rewriteDefRef(e.attrs['clip-path'], clipIdMap);
+    if (clipRef) pathEl.setAttribute('clip-path', clipRef);
+    const maskRef = rewriteDefRef(e.attrs['mask'], maskIdMap);
+    if (maskRef) pathEl.setAttribute('mask', maskRef);
 
     let dashLength: number | undefined;
     if (shouldDash) {
@@ -610,6 +785,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const pathEl = mkPathEl();
 
     applyStaticAttributes(pathEl, s.attrs);
+    const clipRef = rewriteDefRef(s.attrs['clip-path'], clipIdMap);
+    if (clipRef) pathEl.setAttribute('clip-path', clipRef);
+    const maskRef = rewriteDefRef(s.attrs['mask'], maskIdMap);
+    if (maskRef) pathEl.setAttribute('mask', maskRef);
 
     const isClosed = isClosedPath(s.d) && isClosedPath(endD);
     const layer = layerForNode(s);
@@ -765,9 +944,37 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
   }
 
+  function renderDefTrack(tr: DefTrack, local: number): void {
+    const t = clamp01(local);
+    const d = t <= 0 ? tr.startD : t >= 1 ? tr.endD : tr.interp(t);
+    tr.pathEl.setAttribute('d', d);
+
+    const fill = lerpColor(tr.startFill, tr.endFill, t) ?? tr.endFill ?? tr.startFill;
+    const stroke = lerpColor(tr.startStroke, tr.endStroke, t) ?? tr.endStroke ?? tr.startStroke;
+    const fillAttr = fill === undefined && stroke === undefined ? '#000000' : (fill ?? 'none');
+    tr.pathEl.setAttribute('fill', fillAttr);
+    tr.pathEl.setAttribute('stroke', stroke ?? 'none');
+
+    const strokeWidth = lerpOptional(tr.startStrokeWidth, tr.endStrokeWidth, t);
+    if (strokeWidth != null) tr.pathEl.setAttribute('stroke-width', String(strokeWidth));
+
+    const strokeOpacity = lerpOptional(tr.startStrokeOpacity, tr.endStrokeOpacity, t);
+    if (strokeOpacity != null) tr.pathEl.setAttribute('stroke-opacity', String(clamp01(strokeOpacity)));
+
+    const fillOpacity = lerpOptional(tr.startFillOpacity, tr.endFillOpacity, t);
+    if (fillOpacity != null) tr.pathEl.setAttribute('fill-opacity', String(clamp01(fillOpacity)));
+
+    const opacity = lerp(tr.startOpacity, tr.endOpacity, t);
+    tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
+  }
+
   function renderProgress(p: number): void {
     const eased = easing(clamp01(p));
     const time = eased * totalDuration;
+
+    for (const tr of defTracks) {
+      renderDefTrack(tr, eased);
+    }
 
     for (const tr of tracks) {
       const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
@@ -779,6 +986,11 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   function renderGsapProgress(p: number): void {
     const time = clamp01(p) * totalDuration;
     const easeFn = gsap.parseEase(resolveGsapEase(options?.gsapEasePreset));
+    const easedGlobal = easeFn(clamp01(p));
+
+    for (const tr of defTracks) {
+      renderDefTrack(tr, easedGlobal);
+    }
 
     for (const tr of tracks) {
       const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
