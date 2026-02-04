@@ -183,4 +183,33 @@ describe('animateSvg runtime', () => {
     const r = colorMatch ? Number.parseInt(colorMatch[1]!, 10) : 0;
     expect(r).toBeLessThan(120);
   });
+
+  it('applies group delay by class', () => {
+    const startSvg = `<svg viewBox="0 0 10 10">
+      <rect class="g1" x="1" y="1" width="2" height="2" fill="#ff0000"/>
+      <rect class="g2" x="1" y="6" width="2" height="2" fill="#0000ff"/>
+    </svg>`;
+    const endSvg = `<svg viewBox="0 0 10 10">
+      <rect class="g1" x="7" y="1" width="2" height="2" fill="#ff0000"/>
+      <rect class="g2" x="7" y="6" width="2" height="2" fill="#0000ff"/>
+    </svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: { duration: 100, groupStagger: 50, groupStrategy: 'class', layerStagger: 0, intraStagger: 0 }
+    });
+
+    controller.seek(0.1);
+    const paths = Array.from(container.querySelectorAll('path'));
+    const red = paths.find((p) => (p.getAttribute('fill') || '').toLowerCase() === '#ff0000')!;
+    const blue = paths.find((p) => (p.getAttribute('fill') || '').toLowerCase() === '#0000ff')!;
+    const redBox = bboxFromPathD(red.getAttribute('d') || '');
+    const blueBox = bboxFromPathD(blue.getAttribute('d') || '');
+
+    expect(redBox.cx).toBeGreaterThan(2);
+    expect(blueBox.cx).toBeLessThan(2.2);
+  });
 });

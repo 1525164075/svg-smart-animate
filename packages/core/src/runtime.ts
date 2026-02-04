@@ -26,6 +26,8 @@ type Track = {
   layer: number;
   delayMs: number;
   intraDelayMs?: number;
+  groupKey?: string;
+  groupDelayMs?: number;
   startD: string;
   endD: string;
   interp: (t: number) => string;
@@ -259,6 +261,20 @@ function layerIndexByOrder(order: number, min: number, max: number): number {
   return 2;
 }
 
+function resolveGroupKey(n: NormalizedPathNode, strategy: string | undefined): string {
+  if (strategy === 'pathKey') {
+    return n.pathKey ? `path:${n.pathKey}` : `tag:${n.tag}`;
+  }
+  if (strategy === 'class') {
+    const cls = n.classList && n.classList.length ? n.classList[0] : '';
+    return cls ? `class:${cls}` : (n.pathKey ? `path:${n.pathKey}` : `tag:${n.tag}`);
+  }
+  if (n.pathKey) return `path:${n.pathKey}`;
+  const cls = n.classList && n.classList.length ? n.classList[0] : '';
+  if (cls) return `class:${cls}`;
+  return `tag:${n.tag}`;
+}
+
 function deriveMaxSegmentLength(options?: AnimateSvgOptions): number {
   const samplePoints = options?.samplePoints;
   if (!samplePoints || !Number.isFinite(samplePoints)) return 2;
@@ -449,6 +465,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const orbitSnap = options?.orbitSnap ?? true;
   const motionProfile = options?.motionProfile ?? 'uniform';
   const propertyTiming = options?.propertyTiming ?? 'balanced';
+  const groupStagger = Math.max(0, options?.groupStagger ?? 0);
+  const groupStrategy = options?.groupStrategy ?? 'auto';
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -702,6 +720,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       index: trackIndex++,
       layer,
       delayMs,
+      groupKey: resolveGroupKey(p.end, groupStrategy),
       startD,
       endD: p.end.d,
       interp: shouldDash
@@ -778,6 +797,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       index: trackIndex++,
       layer,
       delayMs,
+      groupKey: resolveGroupKey(e, groupStrategy),
       startD,
       endD: e.d,
       interp: shouldDash
@@ -829,6 +849,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       index: trackIndex++,
       layer,
       delayMs,
+      groupKey: resolveGroupKey(s, groupStrategy),
       startD: s.d,
       endD,
       interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
@@ -914,6 +935,29 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
         tr.intraDelayMs = i * intraStagger;
       });
     }
+  }
+
+  if (groupStagger > 0) {
+    const groups = new Map<string, Track[]>();
+    for (const tr of tracks) {
+      const key = tr.groupKey || 'default';
+      const list = groups.get(key) || [];
+      list.push(tr);
+      groups.set(key, list);
+    }
+
+    const entries = Array.from(groups.entries()).map(([key, list]) => {
+      const minOrder = Math.min(...list.map((t) => t.order));
+      return { key, list, minOrder };
+    });
+    entries.sort((a, b) => (a.minOrder - b.minOrder) || a.key.localeCompare(b.key));
+
+    entries.forEach((entry, idx) => {
+      const delay = idx * groupStagger;
+      entry.list.forEach((tr) => {
+        tr.groupDelayMs = delay;
+      });
+    });
   }
 
   // Preserve original drawing order to avoid background shapes covering details.
@@ -1008,7 +1052,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     }
 
     for (const tr of tracks) {
-      const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
+      const delay = tr.delayMs + (tr.groupDelayMs ?? 0) + (tr.intraDelayMs ?? 0);
       const local = clamp01((time - delay) / duration);
       renderTrack(tr, local);
     }
@@ -1024,7 +1068,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     }
 
     for (const tr of tracks) {
-      const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
+      const delay = tr.delayMs + (tr.groupDelayMs ?? 0) + (tr.intraDelayMs ?? 0);
       const local = clamp01((time - delay) / duration);
       const easedLocal = easeFn(local);
       renderTrack(tr, easedLocal);

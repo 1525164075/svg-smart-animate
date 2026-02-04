@@ -19,6 +19,7 @@ export type OrbitMode = 'off' | 'auto' | 'auto+manual';
 export type OrbitDirection = 'cw' | 'ccw' | 'shortest';
 export type MotionProfile = 'uniform' | 'focus-first' | 'detail-first';
 export type PropertyTiming = 'balanced' | 'shape-first' | 'color-lag';
+export type GroupStrategy = 'auto' | 'pathKey' | 'class';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -40,6 +41,8 @@ export type AnimateSvgOptions = {
   motionProfile?: MotionProfile; // default: uniform
   onMatchComputed?: (info: MatchDebugInfo) => void;
   propertyTiming?: PropertyTiming; // default: balanced
+  groupStagger?: number; // ms
+  groupStrategy?: GroupStrategy; // default: auto
 };
 
 export type MatchDebugNode = {
