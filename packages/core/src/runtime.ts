@@ -180,6 +180,18 @@ function isBackgroundNode(n: NormalizedPathNode, overall: ReturnType<typeof comp
   return areaRatio >= 0.9;
 }
 
+function extractViewBox(svgText: string): string | null {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgText, 'image/svg+xml');
+    const svg = doc.querySelector('svg');
+    const vb = svg?.getAttribute('viewBox');
+    return vb ? vb.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
 function extractDefs(svgText: string): SVGDefsElement | null {
   try {
     const parser = new DOMParser();
@@ -206,12 +218,6 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   let animEndNodes = endNodes;
   let backgroundNodes: NormalizedPathNode[] = [];
 
-  if (isAppearMode && endNodes.length) {
-    const overall = computeBBox(endNodes);
-    backgroundNodes = endNodes.filter((n) => isBackgroundNode(n, overall));
-    animEndNodes = endNodes.filter((n) => !backgroundNodes.includes(n));
-  }
-
   if (args.startSvg) {
     const startRaw = parseSvgToNodes(args.startSvg);
     startNodes = normalizeNodes(startRaw);
@@ -224,6 +230,17 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
         opacity: 0
       };
     });
+  }
+
+  const overallEnd = computeBBox(endNodes);
+  const endBackground = endNodes.filter((n) => isBackgroundNode(n, overallEnd));
+  const overallStart = computeBBox(startNodes);
+  const startBackground = startNodes.filter((n) => isBackgroundNode(n, overallStart));
+
+  if (endBackground.length || startBackground.length) {
+    backgroundNodes = endBackground.length ? endBackground : startBackground;
+    animEndNodes = endNodes.filter((n) => !endBackground.includes(n));
+    startNodes = startNodes.filter((n) => !startBackground.includes(n));
   }
 
   const layerStrategy = options?.layerStrategy ?? 'area';
@@ -255,9 +272,14 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const defs = extractDefs(args.endSvg);
   if (defs) svg.appendChild(defs);
 
-  const vbFrom = endNodes.length ? endNodes : startNodes;
-  const vb = computeViewBox(vbFrom);
-  svg.setAttribute('viewBox', `${vb.minX} ${vb.minY} ${vb.width} ${vb.height}`);
+  const explicitViewBox = extractViewBox(args.endSvg) ?? (args.startSvg ? extractViewBox(args.startSvg) : null);
+  if (explicitViewBox) {
+    svg.setAttribute('viewBox', explicitViewBox);
+  } else {
+    const vbFrom = endNodes.length ? endNodes : startNodes;
+    const vb = computeViewBox(vbFrom);
+    svg.setAttribute('viewBox', `${vb.minX} ${vb.minY} ${vb.width} ${vb.height}`);
+  }
 
   container.appendChild(svg);
 
@@ -270,7 +292,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     return document.createElementNS('http://www.w3.org/2000/svg', 'path');
   }
 
-  if (isAppearMode && backgroundNodes.length) {
+  if (backgroundNodes.length) {
     const orderedBg = [...backgroundNodes].sort((a, b) => a.order - b.order);
     for (const n of orderedBg) {
       const pathEl = mkPathEl();
