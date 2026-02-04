@@ -85,6 +85,14 @@ function buildFeatures(nodes: NormalizedPathNode[]): { features: NodeFeatures[];
 }
 
 function costBetween(a: NodeFeatures, b: NodeFeatures, diag: number, w: Required<MatchWeights>): number {
+  const sizeRatio = Math.max(
+    a.width / (b.width || 1),
+    b.width / (a.width || 1),
+    a.height / (b.height || 1),
+    b.height / (a.height || 1)
+  );
+  if (sizeRatio > 3) return 10_000;
+
   const pos = Math.hypot(a.cx - b.cx, a.cy - b.cy) / diag;
   const size = Math.hypot(a.width - b.width, a.height - b.height) / diag;
   const area = Math.abs(a.area - b.area) / (Math.max(a.area, b.area, 1));
