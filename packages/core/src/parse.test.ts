@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseSvgToNodes } from './parse';
+import { extractMaskClipDefs } from './defs';
 
 const svg = `<svg viewBox="0 0 100 100"><path id="p" d="M10 10 L90 10" fill="none" stroke="black"/></svg>`;
 
@@ -83,5 +84,19 @@ describe('parseSvgToNodes', () => {
     expect(nodes.length).toBe(1);
     expect(nodes[0].attrs.fill).toBe('#ff0000');
     expect(nodes[0].attrs.stroke).toBe('#000000');
+  });
+
+  it('extracts mask and clipPath nodes from defs', () => {
+    const svgWithDefs = `
+      <svg viewBox="0 0 10 10">
+        <defs>
+          <clipPath id="clipA"><rect x="0" y="0" width="5" height="5"/></clipPath>
+          <mask id="maskB"><circle cx="5" cy="5" r="3" fill="white"/></mask>
+        </defs>
+        <rect x="0" y="0" width="10" height="10"/>
+      </svg>`;
+    const defs = extractMaskClipDefs(svgWithDefs);
+    expect(defs.clips.get('clipA')?.nodes.length).toBe(1);
+    expect(defs.masks.get('maskB')?.nodes.length).toBe(1);
   });
 });
