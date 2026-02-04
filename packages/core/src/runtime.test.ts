@@ -88,4 +88,27 @@ describe('animateSvg runtime', () => {
     expect(path).toBeTruthy();
     expect(path!.getAttribute('stroke-dasharray')).toBe('2 4');
   });
+
+  it('gsap ease preset A is non-linear at mid-progress', () => {
+    const startSvg = `<svg viewBox=\"0 0 100 100\"><path id=\"p\" d=\"M0 0 H10 V10 H0 Z\" fill=\"#ff0000\"/></svg>`;
+    const endSvg = `<svg viewBox=\"0 0 100 100\"><path id=\"p\" d=\"M50 0 H60 V10 H50 Z\" fill=\"#ff0000\"/></svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: { duration: 100, timeline: 'gsap', gsapEasePreset: 'fast-out-slow-in' }
+    });
+
+    controller.seek(0.5);
+    const path = container.querySelector('path');
+    expect(path).toBeTruthy();
+
+    const d = path!.getAttribute('d') || '';
+    const match = d.match(/M\s*([0-9.\-]+)[,\s]/);
+    const x = match ? Number.parseFloat(match[1]!) : 0;
+    // Linear midpoint would be 25. With ease-out, it should be > 25.
+    expect(x).toBeGreaterThan(25);
+  });
 });

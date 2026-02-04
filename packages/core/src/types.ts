@@ -12,6 +12,7 @@ export type AppearStyle = 'collapse-to-centroid' | 'bbox-to-shape';
 export type MorphEngine = 'auto' | 'flubber' | 'd3';
 export type TimelineDriver = 'raf' | 'gsap';
 export type LayerStrategy = 'area' | 'order';
+export type GsapEasePreset = 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -23,6 +24,8 @@ export type AnimateSvgOptions = {
   timeline?: TimelineDriver;
   layerStrategy?: LayerStrategy;
   layerStagger?: number; // ms
+  gsapEasePreset?: GsapEasePreset; // default: fast-out-slow-in
+  intraStagger?: number; // ms, default: 18
 };
 
 export type AnimateSvgArgs = {

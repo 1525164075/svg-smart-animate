@@ -1,4 +1,4 @@
-import type { AnimateController, AnimateSvgArgs, AnimateSvgOptions } from './types';
+import type { AnimateController, AnimateSvgArgs, AnimateSvgOptions, GsapEasePreset } from './types';
 import { parseSvgToNodes } from './parse';
 import { normalizeNodes, type NormalizedPathNode } from './normalize';
 import { matchNodes } from './match';
@@ -15,6 +15,7 @@ type Track = {
   index: number;
   layer: number;
   delayMs: number;
+  intraDelayMs?: number;
   startD: string;
   endD: string;
   interp: (t: number) => string;
@@ -59,6 +60,18 @@ function lerpColor(a: string | undefined, b: string | undefined, t: number): str
     b: lerp(ca.b, cb.b, t),
     a: lerp(ca.a, cb.a, t)
   });
+}
+
+function resolveGsapEase(preset: GsapEasePreset | undefined): string {
+  switch (preset) {
+    case 'slow-in-fast-out':
+      return 'power3.in';
+    case 'symmetric':
+      return 'power2.inOut';
+    case 'fast-out-slow-in':
+    default:
+      return 'power3.out';
+  }
 }
 
 function computeViewBox(nodes: NormalizedPathNode[]): { minX: number; minY: number; width: number; height: number } {
@@ -299,6 +312,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   const layerStrategy = options?.layerStrategy ?? 'area';
   const layerStagger = Math.max(0, options?.layerStagger ?? 70);
+  const intraStagger = Math.max(0, options?.intraStagger ?? 18);
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -504,45 +518,78 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     });
   }
 
+  if (intraStagger > 0) {
+    const layerGroups = new Map<number, Track[]>();
+    for (const tr of tracks) {
+      const list = layerGroups.get(tr.layer) || [];
+      list.push(tr);
+      layerGroups.set(tr.layer, list);
+    }
+
+    for (const group of layerGroups.values()) {
+      group.sort((a, b) => (a.order - b.order) || (a.index - b.index));
+      group.forEach((tr, i) => {
+        tr.intraDelayMs = i * intraStagger;
+      });
+    }
+  }
+
   // Preserve original drawing order to avoid background shapes covering details.
   const ordered = [...tracks].sort((a, b) => (a.order - b.order) || (a.index - b.index));
   for (const tr of ordered) svg.appendChild(tr.pathEl);
 
-  const maxDelay = tracks.reduce((m, t) => Math.max(m, t.delayMs), 0);
+  const maxDelay = tracks.reduce((m, t) => Math.max(m, t.delayMs + (t.intraDelayMs ?? 0)), 0);
   const totalDuration = Math.max(1, duration + maxDelay);
 
   let rafId: number | null = null;
   let currentP = 0;
   const driver = options?.timeline ?? 'raf';
-  const gsapState = { p: 0 };
-  let gsapTween: gsap.core.Tween | null = null;
+  let gsapTimeline: gsap.core.Timeline | null = null;
+
+  function renderTrack(tr: Track, local: number): void {
+    const t = clamp01(local);
+    const d = t <= 0 ? tr.startD : t >= 1 ? tr.endD : tr.interp(t);
+    tr.pathEl.setAttribute('d', d);
+
+    const fill = lerpColor(tr.startFill, tr.endFill, t) ?? tr.endFill ?? tr.startFill;
+    const stroke = lerpColor(tr.startStroke, tr.endStroke, t) ?? tr.endStroke ?? tr.startStroke;
+
+    // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
+    // when BOTH are missing to avoid accidentally filling stroke-only icons.
+    const fillAttr = fill === undefined && stroke === undefined ? '#000000' : (fill ?? 'none');
+    tr.pathEl.setAttribute('fill', fillAttr);
+    tr.pathEl.setAttribute('stroke', stroke ?? 'none');
+
+    if (tr.dashLength !== undefined && stroke) {
+      const dash = tr.dashLength;
+      tr.pathEl.setAttribute('stroke-dasharray', String(dash));
+      tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, t)));
+    }
+
+    const opacity = lerp(tr.startOpacity, tr.endOpacity, t);
+    tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
+  }
 
   function renderProgress(p: number): void {
     const eased = easing(clamp01(p));
     const time = eased * totalDuration;
 
     for (const tr of tracks) {
-      const local = clamp01((time - tr.delayMs) / duration);
-      const d = local <= 0 ? tr.startD : local >= 1 ? tr.endD : tr.interp(local);
-      tr.pathEl.setAttribute('d', d);
+      const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
+      const local = clamp01((time - delay) / duration);
+      renderTrack(tr, local);
+    }
+  }
 
-      const fill = lerpColor(tr.startFill, tr.endFill, local) ?? tr.endFill ?? tr.startFill;
-      const stroke = lerpColor(tr.startStroke, tr.endStroke, local) ?? tr.endStroke ?? tr.startStroke;
+  function renderGsapProgress(p: number): void {
+    const time = clamp01(p) * totalDuration;
+    const easeFn = gsap.parseEase(resolveGsapEase(options?.gsapEasePreset));
 
-      // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
-      // when BOTH are missing to avoid accidentally filling stroke-only icons.
-      const fillAttr = fill === undefined && stroke === undefined ? '#000000' : (fill ?? 'none');
-      tr.pathEl.setAttribute('fill', fillAttr);
-      tr.pathEl.setAttribute('stroke', stroke ?? 'none');
-
-      if (tr.dashLength !== undefined && stroke) {
-        const dash = tr.dashLength;
-        tr.pathEl.setAttribute('stroke-dasharray', String(dash));
-        tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, local)));
-      }
-
-      const opacity = lerp(tr.startOpacity, tr.endOpacity, local);
-      tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
+    for (const tr of tracks) {
+      const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
+      const local = clamp01((time - delay) / duration);
+      const easedLocal = easeFn(local);
+      renderTrack(tr, easedLocal);
     }
   }
 
@@ -551,30 +598,36 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       cancelAnimationFrame(rafId);
       rafId = null;
     }
-    if (gsapTween) {
-      gsapTween.pause();
+    if (gsapTimeline) {
+      gsapTimeline.pause();
     }
   }
 
   function ensureGsap(): void {
-    if (gsapTween) return;
-    gsapState.p = currentP;
-    gsapTween = gsap.to(gsapState, {
-      p: 1,
-      duration: totalDuration / 1000,
-      ease: 'none',
-      paused: true,
-      onUpdate: () => {
-        currentP = clamp01(gsapState.p);
-        renderProgress(currentP);
-      }
-    });
+    if (gsapTimeline) return;
+    const ease = resolveGsapEase(options?.gsapEasePreset);
+    gsapTimeline = gsap.timeline({ paused: true });
+
+    for (const tr of tracks) {
+      const delay = tr.delayMs + (tr.intraDelayMs ?? 0);
+      const local = { t: 0 };
+      gsapTimeline.to(
+        local,
+        {
+          t: 1,
+          duration: duration / 1000,
+          ease,
+          onUpdate: () => renderTrack(tr, local.t)
+        },
+        delay / 1000
+      );
+    }
   }
 
   function play(): void {
     if (driver === 'gsap') {
       ensureGsap();
-      gsapTween!.play();
+      gsapTimeline!.play();
       return;
     }
 
@@ -608,16 +661,18 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     currentP = clamp01(t);
     if (driver === 'gsap') {
       ensureGsap();
-      gsapTween!.progress(currentP).pause();
+      gsapTimeline!.progress(currentP).pause();
+      renderGsapProgress(currentP);
+      return;
     }
     renderProgress(currentP);
   }
 
   function destroy(): void {
     stop();
-    if (gsapTween) {
-      gsapTween.kill();
-      gsapTween = null;
+    if (gsapTimeline) {
+      gsapTimeline.kill();
+      gsapTimeline = null;
     }
     container.innerHTML = '';
   }
