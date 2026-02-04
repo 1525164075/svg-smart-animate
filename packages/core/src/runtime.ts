@@ -4,6 +4,15 @@ import { normalizeNodes, type NormalizedPathNode } from './normalize';
 import { matchNodes } from './match';
 import { createPathInterpolator } from './morph';
 import { makeAppearStartPath } from './appear';
+import {
+  collectOrbitCandidates,
+  orbitPoint,
+  parseOrbitDir,
+  parseOrbitId,
+  resolveOrbitBinding,
+  translatePath,
+  type OrbitBinding
+} from './orbit';
 import { svgPathProperties } from 'svg-path-properties';
 import { bboxFromPathD, parseColorToRgba, type Rgba } from './geom';
 import { linear } from './easing';
@@ -27,6 +36,9 @@ type Track = {
   endOpacity: number;
   dashLength?: number;
   baseAttrs?: Record<string, string>;
+  startAttrs?: Record<string, string>;
+  endAttrs?: Record<string, string>;
+  orbit?: OrbitBinding;
 };
 
 function clamp01(t: number): number {
@@ -313,6 +325,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const layerStrategy = options?.layerStrategy ?? 'area';
   const layerStagger = Math.max(0, options?.layerStagger ?? 70);
   const intraStagger = Math.max(0, options?.intraStagger ?? 18);
+  const orbitMode = options?.orbitMode ?? 'auto+manual';
+  const orbitDirection = options?.orbitDirection ?? 'shortest';
+  const orbitTolerance = Math.max(0, options?.orbitTolerance ?? 6);
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -428,7 +443,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       startOpacity: p.start.opacity ?? 1,
       endOpacity: p.end.opacity ?? 1,
       dashLength,
-      baseAttrs: p.end.attrs
+      baseAttrs: p.end.attrs,
+      startAttrs: p.start.attrs,
+      endAttrs: p.end.attrs
     });
   }
 
@@ -483,7 +500,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       startOpacity: 0,
       endOpacity: e.opacity ?? 1,
       dashLength,
-      baseAttrs: e.attrs
+      baseAttrs: e.attrs,
+      startAttrs: e.attrs,
+      endAttrs: e.attrs
     });
   }
 
@@ -514,8 +533,36 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endStroke: s.stroke,
       startOpacity: s.opacity ?? 1,
       endOpacity: 0,
-      baseAttrs: s.attrs
+      baseAttrs: s.attrs,
+      startAttrs: s.attrs,
+      endAttrs: s.attrs
     });
+  }
+
+  if (orbitMode !== 'off') {
+    const orbitSource = endNodes.length ? endNodes : startNodes;
+    const candidates = collectOrbitCandidates(orbitSource);
+    if (candidates.length) {
+      for (const tr of tracks) {
+        const startBox = bboxFromPathD(tr.startD);
+        const endBox = bboxFromPathD(tr.endD);
+        const manualId = parseOrbitId(tr.endAttrs?.['data-orbit'] ?? tr.startAttrs?.['data-orbit']);
+        const manualDir = parseOrbitDir(tr.endAttrs?.['data-orbit-dir'] ?? tr.startAttrs?.['data-orbit-dir']);
+
+        const binding = resolveOrbitBinding({
+          mode: orbitMode,
+          direction: orbitDirection,
+          tolerance: orbitTolerance,
+          manualId,
+          manualDir,
+          candidates,
+          startCenter: { x: startBox.cx, y: startBox.cy },
+          endCenter: { x: endBox.cx, y: endBox.cy }
+        });
+
+        if (binding) tr.orbit = binding;
+      }
+    }
   }
 
   if (intraStagger > 0) {
@@ -548,7 +595,14 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   function renderTrack(tr: Track, local: number): void {
     const t = clamp01(local);
-    const d = t <= 0 ? tr.startD : t >= 1 ? tr.endD : tr.interp(t);
+    let d = t <= 0 ? tr.startD : t >= 1 ? tr.endD : tr.interp(t);
+
+    if (tr.orbit) {
+      const box = bboxFromPathD(d);
+      const p = orbitPoint(tr.orbit, t);
+      d = translatePath(d, p.x - box.cx, p.y - box.cy);
+    }
+
     tr.pathEl.setAttribute('d', d);
 
     const fill = lerpColor(tr.startFill, tr.endFill, t) ?? tr.endFill ?? tr.startFill;

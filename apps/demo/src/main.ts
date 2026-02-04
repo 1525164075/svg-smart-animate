@@ -133,6 +133,41 @@ const intraWrap = el('label', 'control');
 intraWrap.innerHTML = `层内错峰(ms) <input type="number" min="0" step="2" value="18" />`;
 controls.appendChild(intraWrap);
 const intraInput = intraWrap.querySelector<HTMLInputElement>('input')!;
+
+const orbitModeWrap = el('label', 'control');
+orbitModeWrap.innerHTML =
+  `轨道 <select>` +
+  `<option value="auto+manual">auto+manual</option>` +
+  `<option value="auto">auto</option>` +
+  `<option value="off">off</option>` +
+  `</select>`;
+const orbitHelpWrap = el('span', 'tooltipWrap');
+const orbitHelpBtn = el('button', 'helpTipSmall');
+orbitHelpBtn.type = 'button';
+orbitHelpBtn.textContent = '?';
+const orbitHelpTip = el('div', 'tooltip');
+orbitHelpTip.textContent =
+  '轨道运动：让元素沿闭合描边路径（如圆/椭圆）移动。auto 会自动匹配最近轨道；auto+manual 支持 data-orbit="#id" 显式绑定。';
+orbitHelpWrap.appendChild(orbitHelpBtn);
+orbitHelpWrap.appendChild(orbitHelpTip);
+orbitModeWrap.appendChild(orbitHelpWrap);
+controls.appendChild(orbitModeWrap);
+const orbitModeSelect = orbitModeWrap.querySelector<HTMLSelectElement>('select')!;
+
+const orbitDirWrap = el('label', 'control');
+orbitDirWrap.innerHTML =
+  `方向 <select>` +
+  `<option value="shortest">shortest</option>` +
+  `<option value="cw">cw</option>` +
+  `<option value="ccw">ccw</option>` +
+  `</select>`;
+controls.appendChild(orbitDirWrap);
+const orbitDirSelect = orbitDirWrap.querySelector<HTMLSelectElement>('select')!;
+
+const orbitTolWrap = el('label', 'control');
+orbitTolWrap.innerHTML = `容差(px) <input type="number" min="0" step="1" value="6" />`;
+controls.appendChild(orbitTolWrap);
+const orbitTolInput = orbitTolWrap.querySelector<HTMLInputElement>('input')!;
 const split = el('div', 'split');
 left.appendChild(split);
 
@@ -188,6 +223,7 @@ document.addEventListener('click', () => {
 
 setupTooltip(helpBtn, helpTip);
 setupTooltip(engineHelpBtn, engineHelpTip);
+setupTooltip(orbitHelpBtn, orbitHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
   target.innerHTML = '';
@@ -250,6 +286,9 @@ function run({ autoplay }: { autoplay: boolean }) {
   const layerStagger = Number.parseInt(layerInput.value || '0', 10);
   const gsapEasePreset = gsapEaseSelect.value as 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
+  const orbitMode = orbitModeSelect.value as 'off' | 'auto' | 'auto+manual';
+  const orbitDirection = orbitDirSelect.value as 'shortest' | 'cw' | 'ccw';
+  const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
 
   try {
     controller = animateSvg({
@@ -266,6 +305,9 @@ function run({ autoplay }: { autoplay: boolean }) {
         layerStagger,
         gsapEasePreset,
         intraStagger,
+        orbitMode,
+        orbitDirection,
+        orbitTolerance,
         layerStrategy: 'area'
       }
     });

@@ -13,6 +13,8 @@ export type MorphEngine = 'auto' | 'flubber' | 'd3';
 export type TimelineDriver = 'raf' | 'gsap';
 export type LayerStrategy = 'area' | 'order';
 export type GsapEasePreset = 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
+export type OrbitMode = 'off' | 'auto' | 'auto+manual';
+export type OrbitDirection = 'cw' | 'ccw' | 'shortest';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -26,6 +28,9 @@ export type AnimateSvgOptions = {
   layerStagger?: number; // ms
   gsapEasePreset?: GsapEasePreset; // default: fast-out-slow-in
   intraStagger?: number; // ms, default: 18
+  orbitMode?: OrbitMode; // default: auto+manual
+  orbitTolerance?: number; // px, default: 6
+  orbitDirection?: OrbitDirection; // default: shortest
 };
 
 export type AnimateSvgArgs = {

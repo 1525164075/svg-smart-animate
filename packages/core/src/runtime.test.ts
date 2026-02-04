@@ -2,6 +2,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { animateSvg } from './index';
+import { bboxFromPathD } from './geom';
 import { svgPathProperties } from 'svg-path-properties';
 
 // jsdom does not implement SVGPathElement.getTotalLength/getPointAtLength (and often does not even expose SVGPathElement),
@@ -110,5 +111,30 @@ describe('animateSvg runtime', () => {
     const x = match ? Number.parseFloat(match[1]!) : 0;
     // Linear midpoint would be 25. With ease-out, it should be > 25.
     expect(x).toBeGreaterThan(25);
+  });
+
+  it('orbit motion moves along arc instead of straight line', () => {
+    const startSvg = `<svg viewBox=\"0 0 100 100\">\n      <circle id=\"orbit\" cx=\"50\" cy=\"50\" r=\"20\" stroke=\"#000\" fill=\"none\"/>\n      <rect id=\"box\" data-orbit=\"#orbit\" x=\"68\" y=\"48\" width=\"4\" height=\"4\" fill=\"#f00\"/>\n    </svg>`;
+
+    const endSvg = `<svg viewBox=\"0 0 100 100\">\n      <circle id=\"orbit\" cx=\"50\" cy=\"50\" r=\"20\" stroke=\"#000\" fill=\"none\"/>\n      <rect id=\"box\" data-orbit=\"#orbit\" x=\"48\" y=\"68\" width=\"4\" height=\"4\" fill=\"#f00\"/>\n    </svg>`;
+
+    const container = document.createElement('div');
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: { duration: 100, orbitMode: 'auto+manual', layerStagger: 0, intraStagger: 0 }
+    });
+
+    controller.seek(0.5);
+    const paths = Array.from(container.querySelectorAll('path'));
+    const boxPath = paths.find((p) => (p.getAttribute('fill') || '').toLowerCase() === '#f00');
+    expect(boxPath).toBeTruthy();
+
+    const d = boxPath!.getAttribute('d') || '';
+    const b = bboxFromPathD(d);
+    // 45° 位置约在 (64,64)；直线中点约 (60,60)
+    expect(b.cx).toBeGreaterThan(62);
+    expect(b.cy).toBeGreaterThan(62);
   });
 });
