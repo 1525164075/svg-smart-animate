@@ -168,7 +168,8 @@ function inheritAttrs(parent: InheritedAttrs, node: SvgsonAst): InheritedAttrs {
 function applyInheritedToAttrs(attrs: Record<string, string>, inherited: InheritedAttrs): void {
   if (inherited.transform && !attrs.transform) attrs.transform = inherited.transform;
   if (inherited.transform && attrs.transform && inherited.transform !== attrs.transform) {
-    attrs.transform = mergeTransform(inherited.transform, attrs.transform);
+    const merged = mergeTransform(inherited.transform, attrs.transform);
+    if (merged) attrs.transform = merged;
   }
 
   if (inherited.opacity != null) {

@@ -15,7 +15,7 @@ import {
   type OrbitBinding
 } from './orbit';
 import { svgPathProperties } from 'svg-path-properties';
-import { bboxFromPathD, parseColorToRgba, type Rgba } from './geom';
+import { bboxFromPathD, parseColorToRgba, rgbaDistance, type Rgba } from './geom';
 import { linear } from './easing';
 import { evalBezier } from './bezier';
 import { gsap } from 'gsap';

@@ -11,7 +11,7 @@ export type OrbitCandidate = {
   center: { x: number; y: number };
   radius: number;
   length: number;
-  props: svgPathProperties;
+  props: InstanceType<typeof svgPathProperties>;
 };
 
 export type OrbitBinding = {
@@ -55,7 +55,7 @@ export function collectOrbitCandidates(nodes: NormalizedPathNode[]): OrbitCandid
     const bbox = bboxFromPathD(n.d);
     const radius = Math.max(1, Math.min(bbox.width, bbox.height) / 2);
 
-    let props: svgPathProperties;
+    let props: InstanceType<typeof svgPathProperties>;
     try {
       props = new svgPathProperties(n.d);
     } catch {

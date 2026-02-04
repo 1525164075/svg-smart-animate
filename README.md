@@ -22,36 +22,22 @@ npm run dev
 
 ## 如何引入（其他项目）
 
-当前包为本地工作区私有包（`@svg-smart-animate/core`，未发布到 npm）。推荐本地依赖方式：
-
-1) 在本仓库构建 core
+直接安装 npm 包：
 
 ```bash
-npm -w @svg-smart-animate/core run build
+npm install @marcodai/svg-smart-animate-core
 ```
 
-2) 在你的项目中安装本地包
-
-```bash
-# 方式一：绝对路径
-npm install /path/to/svg-smart-animate/packages/core
-
-# 方式二：相对路径
-npm install file:../svg-smart-animate/packages/core
-```
-
-3) 代码中引入
+代码中引入：
 
 ```ts
-import { animateSvg } from '@svg-smart-animate/core';
+import { animateSvg } from '@marcodai/svg-smart-animate-core';
 ```
-
-> 如果你计划发布到 npm，需要把 `packages/core/package.json` 的 `private` 去掉并配置版本发布流程。
 
 ## 基本用法
 
 ```ts
-import { animateSvg, easeInOutCubic } from '@svg-smart-animate/core';
+import { animateSvg, easeInOutCubic } from '@marcodai/svg-smart-animate-core';
 
 const controller = animateSvg({
   container: document.getElementById('preview')!,

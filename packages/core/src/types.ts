@@ -1,3 +1,5 @@
+import type { BezierCurve } from './bezier';
+
 export type EasingFunction = (t: number) => number;
 export type { BezierCurve } from './bezier';
 
