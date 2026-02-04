@@ -28,10 +28,17 @@ type Track = {
   startD: string;
   endD: string;
   interp: (t: number) => string;
+  importance: number;
   startFill: string | undefined;
   endFill: string | undefined;
   startStroke: string | undefined;
   endStroke: string | undefined;
+  startStrokeWidth?: number;
+  endStrokeWidth?: number;
+  startStrokeOpacity?: number;
+  endStrokeOpacity?: number;
+  startFillOpacity?: number;
+  endFillOpacity?: number;
   startOpacity: number;
   endOpacity: number;
   dashLength?: number;
@@ -47,6 +54,21 @@ function clamp01(t: number): number {
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
+}
+
+function lerpOptional(a: number | undefined, b: number | undefined, t: number): number | undefined {
+  if (a == null && b == null) return undefined;
+  if (a == null) return b;
+  if (b == null) return a;
+  return lerp(a, b, t);
+}
+
+function parseNumberAttr(attrs: Record<string, string> | undefined, key: string): number | undefined {
+  if (!attrs) return undefined;
+  const raw = attrs[key];
+  if (raw == null || raw === '') return undefined;
+  const n = Number.parseFloat(String(raw));
+  return Number.isFinite(n) ? n : undefined;
 }
 
 function rgbaToCss(c: Rgba): string {
@@ -84,6 +106,27 @@ function resolveGsapEase(preset: GsapEasePreset | undefined): string {
     default:
       return 'power3.out';
   }
+}
+
+function easeInCubic(t: number): number {
+  return t * t * t;
+}
+
+function easeOutCubic(t: number): number {
+  const u = 1 - t;
+  return 1 - u * u * u;
+}
+
+function applyMotionProfile(t: number, importance: number, profile: string | undefined): number {
+  if (!profile || profile === 'uniform') return t;
+  const w = clamp01(importance);
+  if (profile === 'focus-first') {
+    return lerp(t, easeOutCubic(t), w);
+  }
+  if (profile === 'detail-first') {
+    return lerp(t, easeInCubic(t), w);
+  }
+  return t;
 }
 
 function computeViewBox(nodes: NormalizedPathNode[]): { minX: number; minY: number; width: number; height: number } {
@@ -166,12 +209,9 @@ function deriveMaxSegmentLength(options?: AnimateSvgOptions): number {
 }
 
 const STATIC_ATTRS = [
-  'stroke-width',
   'stroke-linecap',
   'stroke-linejoin',
   'stroke-miterlimit',
-  'stroke-opacity',
-  'fill-opacity',
   'fill-rule',
   'shape-rendering',
   'vector-effect',
@@ -329,6 +369,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const orbitDirection = options?.orbitDirection ?? 'shortest';
   const orbitTolerance = Math.max(0, options?.orbitTolerance ?? 6);
   const orbitDebug = options?.orbitDebug ?? false;
+  const orbitSnap = options?.orbitSnap ?? true;
+  const motionProfile = options?.motionProfile ?? 'uniform';
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -385,6 +427,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const fillAttr = n.fill ?? 'none';
       pathEl.setAttribute('fill', fillAttr);
       pathEl.setAttribute('stroke', n.stroke ?? 'none');
+      if (n.attrs['stroke-width']) pathEl.setAttribute('stroke-width', n.attrs['stroke-width']);
+      if (n.attrs['stroke-opacity']) pathEl.setAttribute('stroke-opacity', n.attrs['stroke-opacity']);
+      if (n.attrs['fill-opacity']) pathEl.setAttribute('fill-opacity', n.attrs['fill-opacity']);
       if (n.opacity != null) pathEl.setAttribute('opacity', String(n.opacity));
       svg.appendChild(pathEl);
     }
@@ -421,6 +466,13 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const isClosed = isClosedPath(startD) && isClosedPath(p.end.d);
     const layer = layerForNode(p.end);
     const delayMs = layer * layerStagger;
+    const importance = clamp01(layerOverall.area > 0 ? (bboxFromPathD(p.end.d).area || 0) / layerOverall.area : 0);
+    const startStrokeWidth = parseNumberAttr(p.start.attrs, 'stroke-width');
+    const endStrokeWidth = parseNumberAttr(p.end.attrs, 'stroke-width');
+    const startStrokeOpacity = parseNumberAttr(p.start.attrs, 'stroke-opacity');
+    const endStrokeOpacity = parseNumberAttr(p.end.attrs, 'stroke-opacity');
+    const startFillOpacity = parseNumberAttr(p.start.attrs, 'fill-opacity');
+    const endFillOpacity = parseNumberAttr(p.end.attrs, 'fill-opacity');
 
     tracks.push({
       pathEl,
@@ -441,6 +493,13 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endFill: p.end.fill,
       startStroke: p.start.stroke,
       endStroke: p.end.stroke,
+      importance,
+      startStrokeWidth,
+      endStrokeWidth,
+      startStrokeOpacity,
+      endStrokeOpacity,
+      startFillOpacity,
+      endFillOpacity,
       startOpacity: p.start.opacity ?? 1,
       endOpacity: p.end.opacity ?? 1,
       dashLength,
@@ -482,6 +541,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const isClosed = isClosedPath(startD) && isClosedPath(e.d);
     const layer = layerForNode(e);
     const delayMs = layer * layerStagger;
+    const importance = clamp01(layerOverall.area > 0 ? (bboxFromPathD(e.d).area || 0) / layerOverall.area : 0);
+    const strokeWidth = parseNumberAttr(e.attrs, 'stroke-width');
+    const strokeOpacity = parseNumberAttr(e.attrs, 'stroke-opacity');
+    const fillOpacity = parseNumberAttr(e.attrs, 'fill-opacity');
 
     tracks.push({
       pathEl,
@@ -498,6 +561,13 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endFill: e.fill,
       startStroke: e.stroke,
       endStroke: e.stroke,
+      importance,
+      startStrokeWidth: strokeWidth,
+      endStrokeWidth: strokeWidth,
+      startStrokeOpacity: strokeOpacity,
+      endStrokeOpacity: strokeOpacity,
+      startFillOpacity: fillOpacity,
+      endFillOpacity: fillOpacity,
       startOpacity: 0,
       endOpacity: e.opacity ?? 1,
       dashLength,
@@ -518,6 +588,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     const isClosed = isClosedPath(s.d) && isClosedPath(endD);
     const layer = layerForNode(s);
     const delayMs = layer * layerStagger;
+    const importance = clamp01(layerOverall.area > 0 ? (bboxFromPathD(s.d).area || 0) / layerOverall.area : 0);
+    const strokeWidth = parseNumberAttr(s.attrs, 'stroke-width');
+    const strokeOpacity = parseNumberAttr(s.attrs, 'stroke-opacity');
+    const fillOpacity = parseNumberAttr(s.attrs, 'fill-opacity');
 
     tracks.push({
       pathEl,
@@ -532,6 +606,13 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       endFill: s.fill,
       startStroke: s.stroke,
       endStroke: s.stroke,
+      importance,
+      startStrokeWidth: strokeWidth,
+      endStrokeWidth: strokeWidth,
+      startStrokeOpacity: strokeOpacity,
+      endStrokeOpacity: strokeOpacity,
+      startFillOpacity: fillOpacity,
+      endFillOpacity: fillOpacity,
       startOpacity: s.opacity ?? 1,
       endOpacity: 0,
       baseAttrs: s.attrs,
@@ -554,6 +635,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
         mode: orbitMode,
         direction: orbitDirection,
         tolerance: orbitTolerance,
+        snap: orbitSnap,
         manualId,
         manualDir,
         candidates: orbitCandidates,
@@ -618,18 +700,19 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
 
   function renderTrack(tr: Track, local: number): void {
     const t = clamp01(local);
-    let d = t <= 0 ? tr.startD : t >= 1 ? tr.endD : tr.interp(t);
+    const tt = applyMotionProfile(t, tr.importance, motionProfile);
+    let d = tt <= 0 ? tr.startD : tt >= 1 ? tr.endD : tr.interp(tt);
 
     if (tr.orbit) {
       const box = bboxFromPathD(d);
-      const p = orbitPoint(tr.orbit, t);
+      const p = orbitPoint(tr.orbit, tt);
       d = translatePath(d, p.x - box.cx, p.y - box.cy);
     }
 
     tr.pathEl.setAttribute('d', d);
 
-    const fill = lerpColor(tr.startFill, tr.endFill, t) ?? tr.endFill ?? tr.startFill;
-    const stroke = lerpColor(tr.startStroke, tr.endStroke, t) ?? tr.endStroke ?? tr.startStroke;
+    const fill = lerpColor(tr.startFill, tr.endFill, tt) ?? tr.endFill ?? tr.startFill;
+    const stroke = lerpColor(tr.startStroke, tr.endStroke, tt) ?? tr.endStroke ?? tr.startStroke;
 
     // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
     // when BOTH are missing to avoid accidentally filling stroke-only icons.
@@ -640,10 +723,19 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     if (tr.dashLength !== undefined && stroke) {
       const dash = tr.dashLength;
       tr.pathEl.setAttribute('stroke-dasharray', String(dash));
-      tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, t)));
+      tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tt)));
     }
 
-    const opacity = lerp(tr.startOpacity, tr.endOpacity, t);
+    const strokeWidth = lerpOptional(tr.startStrokeWidth, tr.endStrokeWidth, tt);
+    if (strokeWidth != null) tr.pathEl.setAttribute('stroke-width', String(strokeWidth));
+
+    const strokeOpacity = lerpOptional(tr.startStrokeOpacity, tr.endStrokeOpacity, tt);
+    if (strokeOpacity != null) tr.pathEl.setAttribute('stroke-opacity', String(clamp01(strokeOpacity)));
+
+    const fillOpacity = lerpOptional(tr.startFillOpacity, tr.endFillOpacity, tt);
+    if (fillOpacity != null) tr.pathEl.setAttribute('fill-opacity', String(clamp01(fillOpacity)));
+
+    const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);
     tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
   }
 

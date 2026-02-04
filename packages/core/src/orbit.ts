@@ -112,6 +112,7 @@ export function resolveOrbitBinding(opts: {
   mode: OrbitMode;
   direction: OrbitDirection;
   tolerance: number;
+  snap?: boolean;
   manualId?: string | null;
   manualDir?: OrbitDirection | null;
   candidates: OrbitCandidate[];
@@ -122,6 +123,7 @@ export function resolveOrbitBinding(opts: {
   if (mode === 'off') return null;
 
   const direction = opts.manualDir ?? opts.direction;
+  const snap = opts.snap ?? false;
 
   if (mode === 'auto+manual' && opts.manualId) {
     const cand = opts.candidates.find((c) => c.id === opts.manualId);
@@ -136,22 +138,35 @@ export function resolveOrbitBinding(opts: {
   if (mode === 'auto' || mode === 'auto+manual') {
     let best: OrbitBinding | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
+    let bestSnap: OrbitBinding | null = null;
+    let bestSnapScore = Number.POSITIVE_INFINITY;
 
     for (const cand of opts.candidates) {
       const tol = Math.max(opts.tolerance, cand.radius * 0.05);
+      const snapTol = Math.max(tol * 2, cand.radius * 0.2);
       const p0 = projectPointOnOrbit(cand, opts.startCenter);
       const p1 = projectPointOnOrbit(cand, opts.endCenter);
-      if (p0.distance > tol || p1.distance > tol) continue;
 
       const score = p0.distance + p1.distance;
-      if (score < bestScore) {
-        bestScore = score;
-        const delta = resolveDirectionDelta(p0.t, p1.t, direction);
-        best = { candidate: cand, t0: p0.t, t1: p1.t, delta };
+      if (p0.distance <= tol && p1.distance <= tol) {
+        if (score < bestScore) {
+          bestScore = score;
+          const delta = resolveDirectionDelta(p0.t, p1.t, direction);
+          best = { candidate: cand, t0: p0.t, t1: p1.t, delta };
+        }
+        continue;
+      }
+
+      if (snap && p0.distance <= snapTol && p1.distance <= snapTol) {
+        if (score < bestSnapScore) {
+          bestSnapScore = score;
+          const delta = resolveDirectionDelta(p0.t, p1.t, direction);
+          bestSnap = { candidate: cand, t0: p0.t, t1: p1.t, delta };
+        }
       }
     }
 
-    return best;
+    return best ?? bestSnap;
   }
 
   return null;

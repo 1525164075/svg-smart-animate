@@ -22,6 +22,8 @@ type NodeFeatures = {
   height: number;
   area: number;
   fill: ReturnType<typeof parseColorToRgba>;
+  pathKey?: string;
+  classList?: string[];
 };
 
 const DEFAULT_WEIGHTS: Required<MatchWeights> = {
@@ -29,7 +31,9 @@ const DEFAULT_WEIGHTS: Required<MatchWeights> = {
   size: 0.35,
   area: 0.15,
   color: 0.3,
-  length: 0
+  length: 0,
+  group: 0.25,
+  class: 0.15
 };
 
 function stableKey(n: NormalizedPathNode): string | null {
@@ -50,6 +54,38 @@ function styleKey(n: NormalizedPathNode): 'f' | 's' | 'fs' | 'none' {
 
 function groupKey(n: NormalizedPathNode): string {
   return `${n.tag}:${styleKey(n)}`;
+}
+
+function classTokens(n: NormalizedPathNode): string[] {
+  if (!n.classList || n.classList.length === 0) return [];
+  return n.classList.map((c) => c.trim().toLowerCase()).filter(Boolean);
+}
+
+function pathDistance(a?: string, b?: string): number {
+  if (!a && !b) return 0;
+  if (!a || !b) return 1;
+  const as = a.split('/');
+  const bs = b.split('/');
+  const maxLen = Math.max(as.length, bs.length);
+  let common = 0;
+  for (let i = 0; i < Math.min(as.length, bs.length); i++) {
+    if (as[i] !== bs[i]) break;
+    common++;
+  }
+  return 1 - common / (maxLen || 1);
+}
+
+function classDistance(a?: string[], b?: string[]): number {
+  if ((!a || a.length === 0) && (!b || b.length === 0)) return 0;
+  if (!a || !b || a.length === 0 || b.length === 0) return 1;
+  const setA = new Set(a.map((c) => c.toLowerCase()));
+  const setB = new Set(b.map((c) => c.toLowerCase()));
+  let inter = 0;
+  for (const v of setA) {
+    if (setB.has(v)) inter++;
+  }
+  const union = new Set([...setA, ...setB]).size || 1;
+  return 1 - inter / union;
 }
 
 function buildFeatures(nodes: NormalizedPathNode[]): { features: NodeFeatures[]; diag: number } {
@@ -77,7 +113,9 @@ function buildFeatures(nodes: NormalizedPathNode[]): { features: NodeFeatures[];
       width: b.width,
       height: b.height,
       area: b.area,
-      fill: parseColorToRgba(n.fill)
+      fill: parseColorToRgba(n.fill),
+      pathKey: n.pathKey,
+      classList: n.classList
     };
   });
 
@@ -89,8 +127,10 @@ function costBetween(a: NodeFeatures, b: NodeFeatures, diag: number, w: Required
   const size = Math.hypot(a.width - b.width, a.height - b.height) / diag;
   const area = Math.abs(a.area - b.area) / (Math.max(a.area, b.area, 1));
   const color = rgbaDistance(a.fill, b.fill);
+  const group = pathDistance(a.pathKey, b.pathKey);
+  const cls = classDistance(a.classList, b.classList);
 
-  return w.position * pos + w.size * size + w.area * area + w.color * color;
+  return w.position * pos + w.size * size + w.area * area + w.color * color + w.group * group + w.class * cls;
 }
 
 function padSquare(matrix: number[][], padValue: number): number[][] {
@@ -169,7 +209,7 @@ function matchGroup(
     else endByKey.set(k, [e]);
   }
 
-  const startRemaining: NormalizedPathNode[] = [];
+  let startRemaining: NormalizedPathNode[] = [];
   for (const s of start) {
     const k = stableKey(s);
     if (!k) {
@@ -188,7 +228,61 @@ function matchGroup(
     endUsed.add(e);
   }
 
-  const endRemaining = end.filter((e) => !endUsed.has(e));
+  let endRemaining = end.filter((e) => !endUsed.has(e));
+
+  if (startRemaining.length && endRemaining.length) {
+    const startCounts = new Map<string, number>();
+    for (const n of startRemaining) {
+      for (const cls of classTokens(n)) {
+        startCounts.set(cls, (startCounts.get(cls) || 0) + 1);
+      }
+    }
+
+    const endCounts = new Map<string, number>();
+    for (const n of endRemaining) {
+      for (const cls of classTokens(n)) {
+        endCounts.set(cls, (endCounts.get(cls) || 0) + 1);
+      }
+    }
+
+    const uniqueTokens = new Set<string>();
+    for (const [cls, count] of startCounts.entries()) {
+      if (count === 1 && endCounts.get(cls) === 1) uniqueTokens.add(cls);
+    }
+
+    if (uniqueTokens.size) {
+      const startByToken = new Map<string, NormalizedPathNode>();
+      for (const n of startRemaining) {
+        const tokens = classTokens(n);
+        const hit = tokens.find((t) => uniqueTokens.has(t));
+        if (hit) startByToken.set(hit, n);
+      }
+
+      const endByToken = new Map<string, NormalizedPathNode>();
+      for (const n of endRemaining) {
+        const tokens = classTokens(n);
+        const hit = tokens.find((t) => uniqueTokens.has(t));
+        if (hit) endByToken.set(hit, n);
+      }
+
+      const matchedStart = new Set<NormalizedPathNode>();
+      const matchedEnd = new Set<NormalizedPathNode>();
+
+      for (const token of uniqueTokens) {
+        const s = startByToken.get(token);
+        const e = endByToken.get(token);
+        if (!s || !e) continue;
+        pairs.push({ start: s, end: e, cost: 0 });
+        matchedStart.add(s);
+        matchedEnd.add(e);
+      }
+
+      if (matchedStart.size || matchedEnd.size) {
+        startRemaining = startRemaining.filter((n) => !matchedStart.has(n));
+        endRemaining = endRemaining.filter((n) => !matchedEnd.has(n));
+      }
+    }
+  }
 
   if (startRemaining.length === 0 || endRemaining.length === 0) {
     return {

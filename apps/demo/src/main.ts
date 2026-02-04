@@ -124,6 +124,25 @@ gsapEaseWrap.innerHTML =
 controls.appendChild(gsapEaseWrap);
 const gsapEaseSelect = gsapEaseWrap.querySelector<HTMLSelectElement>('select')!;
 
+const motionWrap = el('label', 'control');
+motionWrap.innerHTML =
+  `节奏配置 <select>` +
+  `<option value="uniform">uniform</option>` +
+  `<option value="focus-first">focus-first</option>` +
+  `<option value="detail-first">detail-first</option>` +
+  `</select>`;
+const motionHelpWrap = el('span', 'tooltipWrap');
+const motionHelpBtn = el('button', 'helpTipSmall');
+motionHelpBtn.type = 'button';
+motionHelpBtn.textContent = '?';
+const motionHelpTip = el('div', 'tooltip');
+motionHelpTip.textContent = '按元素重要性调整节奏：focus-first 让大元素更快进入，detail-first 让细节更快显现。';
+motionHelpWrap.appendChild(motionHelpBtn);
+motionHelpWrap.appendChild(motionHelpTip);
+motionWrap.appendChild(motionHelpWrap);
+controls.appendChild(motionWrap);
+const motionSelect = motionWrap.querySelector<HTMLSelectElement>('select')!;
+
 const layerWrap = el('label', 'control');
 layerWrap.innerHTML = `分层延迟(ms) <input type="number" min="0" step="10" value="70" />`;
 controls.appendChild(layerWrap);
@@ -168,6 +187,20 @@ const orbitTolWrap = el('label', 'control');
 orbitTolWrap.innerHTML = `容差(px) <input type="number" min="0" step="1" value="6" />`;
 controls.appendChild(orbitTolWrap);
 const orbitTolInput = orbitTolWrap.querySelector<HTMLInputElement>('input')!;
+
+const orbitSnapWrap = el('label', 'control');
+orbitSnapWrap.innerHTML = `轨道吸附 <input type="checkbox" checked />`;
+const orbitSnapHelpWrap = el('span', 'tooltipWrap');
+const orbitSnapHelpBtn = el('button', 'helpTipSmall');
+orbitSnapHelpBtn.type = 'button';
+orbitSnapHelpBtn.textContent = '?';
+const orbitSnapHelpTip = el('div', 'tooltip');
+orbitSnapHelpTip.textContent = '自动匹配不到时，允许在更宽容差内吸附到最近轨道。';
+orbitSnapHelpWrap.appendChild(orbitSnapHelpBtn);
+orbitSnapHelpWrap.appendChild(orbitSnapHelpTip);
+orbitSnapWrap.appendChild(orbitSnapHelpWrap);
+controls.appendChild(orbitSnapWrap);
+const orbitSnapInput = orbitSnapWrap.querySelector<HTMLInputElement>('input')!;
 
 const orbitDebugWrap = el('label', 'control');
 orbitDebugWrap.innerHTML = `轨道调试 <input type="checkbox" />`;
@@ -238,7 +271,9 @@ document.addEventListener('click', () => {
 setupTooltip(helpBtn, helpTip);
 setupTooltip(engineHelpBtn, engineHelpTip);
 setupTooltip(orbitHelpBtn, orbitHelpTip);
+setupTooltip(orbitSnapHelpBtn, orbitSnapHelpTip);
 setupTooltip(orbitDebugHelpBtn, orbitDebugHelpTip);
+setupTooltip(motionHelpBtn, motionHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
   target.innerHTML = '';
@@ -301,9 +336,11 @@ function run({ autoplay }: { autoplay: boolean }) {
   const layerStagger = Number.parseInt(layerInput.value || '0', 10);
   const gsapEasePreset = gsapEaseSelect.value as 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
+  const motionProfile = motionSelect.value as 'uniform' | 'focus-first' | 'detail-first';
   const orbitMode = orbitModeSelect.value as 'off' | 'auto' | 'auto+manual';
   const orbitDirection = orbitDirSelect.value as 'shortest' | 'cw' | 'ccw';
   const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
+  const orbitSnap = orbitSnapInput.checked;
   const orbitDebug = orbitDebugInput.checked;
 
   try {
@@ -321,9 +358,11 @@ function run({ autoplay }: { autoplay: boolean }) {
         layerStagger,
         gsapEasePreset,
         intraStagger,
+        motionProfile,
         orbitMode,
         orbitDirection,
         orbitTolerance,
+        orbitSnap,
         orbitDebug,
         layerStrategy: 'area'
       }

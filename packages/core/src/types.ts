@@ -6,6 +6,8 @@ export type MatchWeights = {
   area?: number;
   color?: number;
   length?: number;
+  group?: number;
+  class?: number;
 };
 
 export type AppearStyle = 'collapse-to-centroid' | 'bbox-to-shape';
@@ -15,6 +17,7 @@ export type LayerStrategy = 'area' | 'order';
 export type GsapEasePreset = 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
 export type OrbitMode = 'off' | 'auto' | 'auto+manual';
 export type OrbitDirection = 'cw' | 'ccw' | 'shortest';
+export type MotionProfile = 'uniform' | 'focus-first' | 'detail-first';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -32,6 +35,8 @@ export type AnimateSvgOptions = {
   orbitTolerance?: number; // px, default: 6
   orbitDirection?: OrbitDirection; // default: shortest
   orbitDebug?: boolean; // default: false
+  orbitSnap?: boolean; // default: true
+  motionProfile?: MotionProfile; // default: uniform
 };
 
 export type AnimateSvgArgs = {

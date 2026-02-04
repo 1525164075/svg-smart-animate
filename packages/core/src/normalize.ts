@@ -11,6 +11,8 @@ export type NormalizedPathNode = {
   stroke?: string;
   opacity?: number;
   attrs: Record<string, string>;
+  classList?: string[];
+  pathKey?: string;
 };
 
 export function normalizeNodes(raw: RawSvgNode[]): NormalizedPathNode[] {
@@ -28,7 +30,9 @@ export function normalizeNodes(raw: RawSvgNode[]): NormalizedPathNode[] {
       order: n.order,
       tag: n.tag,
       d,
-      attrs: n.attrs
+      attrs: n.attrs,
+      classList: n.classList,
+      pathKey: n.pathKey
     };
 
     if (n.attrs.fill !== undefined) node.fill = n.attrs.fill;

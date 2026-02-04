@@ -5,6 +5,8 @@ export type RawSvgNode = {
   order: number;
   tag: string;
   attrs: Record<string, string>;
+  classList?: string[];
+  pathKey?: string;
 };
 
 type SvgsonAst = {
@@ -25,6 +27,7 @@ type InheritedAttrs = {
   filter?: string;
   clipPath?: string;
   mask?: string;
+  pathTokens?: string[];
 };
 
 const BLOCKED_ANCESTORS = new Set([
@@ -47,6 +50,24 @@ function toNumber(v: string | undefined): number | undefined {
 function mergeTransform(parent: string | undefined, own: string | undefined): string | undefined {
   if (parent && own) return `${parent} ${own}`;
   return own || parent;
+}
+
+function splitClassList(input: string | undefined): string[] {
+  if (!input) return [];
+  return String(input)
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function nodeKeyFromAttrs(attrs: Record<string, string>): string | null {
+  const id = attrs.id?.trim();
+  if (id) return `id:${id}`;
+  const name = attrs['data-name']?.trim();
+  if (name) return `name:${name}`;
+  const cls = splitClassList(attrs.class || attrs.className)[0];
+  if (cls) return `class:${cls}`;
+  return null;
 }
 
 function parseStyleDeclarations(input: string): Record<string, string> {
@@ -130,12 +151,17 @@ function inheritAttrs(parent: InheritedAttrs, node: SvgsonAst): InheritedAttrs {
   const nextOpacity =
     ownOpacity == null ? parent.opacity : parent.opacity == null ? ownOpacity : parent.opacity * ownOpacity;
 
+  const parentPath = parent.pathTokens ?? [];
+  const ownKey = nodeKeyFromAttrs(node.attributes);
+  const pathTokens = ownKey ? [...parentPath, ownKey] : parentPath;
+
   return {
     transform: mergeTransform(parent.transform, node.attributes.transform),
     opacity: nextOpacity,
     filter: node.attributes.filter ?? parent.filter,
     clipPath: node.attributes['clip-path'] ?? parent.clipPath,
-    mask: node.attributes.mask ?? parent.mask
+    mask: node.attributes.mask ?? parent.mask,
+    pathTokens
   };
 }
 
@@ -199,15 +225,9 @@ export function parseSvgToNodes(svg: string): RawSvgNode[] {
 
     applyStyleIfMissing(attrs, tagStyle);
 
-    const classAttr = attrs.class || attrs.className;
-    if (classAttr) {
-      const classes = String(classAttr)
-        .split(/\\s+/)
-        .map((c) => c.trim())
-        .filter(Boolean);
-      for (const cls of classes) {
-        applyStyleIfMissing(attrs, styleMaps.byClass.get(cls));
-      }
+    const classList = splitClassList(attrs.class || attrs.className);
+    for (const cls of classList) {
+      applyStyleIfMissing(attrs, styleMaps.byClass.get(cls));
     }
 
     applyStyleIfMissing(attrs, idStyle);
@@ -225,7 +245,9 @@ export function parseSvgToNodes(svg: string): RawSvgNode[] {
       id,
       order: order++,
       tag,
-      attrs
+      attrs,
+      classList: classList.length ? classList : undefined,
+      pathKey: inherited.pathTokens?.join('/') || undefined
     });
   }, false, {});
 
