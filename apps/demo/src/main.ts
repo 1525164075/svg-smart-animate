@@ -143,6 +143,25 @@ motionWrap.appendChild(motionHelpWrap);
 controls.appendChild(motionWrap);
 const motionSelect = motionWrap.querySelector<HTMLSelectElement>('select')!;
 
+const propTimingWrap = el('label', 'control');
+propTimingWrap.innerHTML =
+  `属性节奏 <select>` +
+  `<option value="balanced">balanced</option>` +
+  `<option value="shape-first">shape-first</option>` +
+  `<option value="color-lag">color-lag</option>` +
+  `</select>`;
+const propTimingHelpWrap = el('span', 'tooltipWrap');
+const propTimingHelpBtn = el('button', 'helpTipSmall');
+propTimingHelpBtn.type = 'button';
+propTimingHelpBtn.textContent = '?';
+const propTimingHelpTip = el('div', 'tooltip');
+propTimingHelpTip.textContent = '分离形状/颜色/透明度节奏，让形变更快、颜色略慢，整体更像 Smart Animate。';
+propTimingHelpWrap.appendChild(propTimingHelpBtn);
+propTimingHelpWrap.appendChild(propTimingHelpTip);
+propTimingWrap.appendChild(propTimingHelpWrap);
+controls.appendChild(propTimingWrap);
+const propTimingSelect = propTimingWrap.querySelector<HTMLSelectElement>('select')!;
+
 const matchDebugWrap = el('label', 'control');
 matchDebugWrap.innerHTML = `匹配面板 <input type="checkbox" checked />`;
 const matchDebugHelpWrap = el('span', 'tooltipWrap');
@@ -161,6 +180,21 @@ const layerWrap = el('label', 'control');
 layerWrap.innerHTML = `分层延迟(ms) <input type="number" min="0" step="10" value="70" />`;
 controls.appendChild(layerWrap);
 const layerInput = layerWrap.querySelector<HTMLInputElement>('input')!;
+
+const groupWrap = el('label', 'control');
+groupWrap.innerHTML = `分组延迟(ms) <input type="number" min="0" step="10" value="0" />`;
+controls.appendChild(groupWrap);
+const groupInput = groupWrap.querySelector<HTMLInputElement>('input')!;
+
+const groupStrategyWrap = el('label', 'control');
+groupStrategyWrap.innerHTML =
+  `分组规则 <select>` +
+  `<option value="auto">auto</option>` +
+  `<option value="pathKey">pathKey</option>` +
+  `<option value="class">class</option>` +
+  `</select>`;
+controls.appendChild(groupStrategyWrap);
+const groupStrategySelect = groupStrategyWrap.querySelector<HTMLSelectElement>('select')!;
 
 const intraWrap = el('label', 'control');
 intraWrap.innerHTML = `层内错峰(ms) <input type="number" min="0" step="2" value="18" />`;
@@ -293,6 +327,7 @@ setupTooltip(orbitHelpBtn, orbitHelpTip);
 setupTooltip(orbitSnapHelpBtn, orbitSnapHelpTip);
 setupTooltip(orbitDebugHelpBtn, orbitDebugHelpTip);
 setupTooltip(motionHelpBtn, motionHelpTip);
+setupTooltip(propTimingHelpBtn, propTimingHelpTip);
 setupTooltip(matchDebugHelpBtn, matchDebugHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
@@ -338,7 +373,9 @@ function labelForNode(node: MatchDebugInfo['pairs'][number]['start']): string {
   const id = node.id || '';
   const path = node.pathKey ? node.pathKey.split('/').slice(-1)[0] : '';
   const cls = node.classList && node.classList.length ? node.classList[0] : '';
-  return id || path || cls || `${node.tag}@${node.order}`;
+  const label = id || path || cls || `${node.tag}@${node.order}`;
+  const group = node.pathKey ? `path:${node.pathKey}` : cls ? `class:${cls}` : '';
+  return group ? `${label} <span class="groupKey">${group}</span>` : label;
 }
 
 function renderMatchPanel(info: MatchDebugInfo | null) {
@@ -401,7 +438,10 @@ function run({ autoplay }: { autoplay: boolean }) {
   const gsapEasePreset = gsapEaseSelect.value as 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
   const motionProfile = motionSelect.value as 'uniform' | 'focus-first' | 'detail-first';
+  const propertyTiming = propTimingSelect.value as 'balanced' | 'shape-first' | 'color-lag';
   const matchDebug = matchDebugInput.checked;
+  const groupStagger = Number.parseInt(groupInput.value || '0', 10);
+  const groupStrategy = groupStrategySelect.value as 'auto' | 'pathKey' | 'class';
   const orbitMode = orbitModeSelect.value as 'off' | 'auto' | 'auto+manual';
   const orbitDirection = orbitDirSelect.value as 'shortest' | 'cw' | 'ccw';
   const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
@@ -424,6 +464,9 @@ function run({ autoplay }: { autoplay: boolean }) {
         gsapEasePreset,
         intraStagger,
         motionProfile,
+        propertyTiming,
+        groupStagger,
+        groupStrategy,
         orbitMode,
         orbitDirection,
         orbitTolerance,
