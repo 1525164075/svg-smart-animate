@@ -7,6 +7,15 @@ function rectPath(x: number): string {
   return shapeToPath('rect', { x: String(x), y: '0', width: '10', height: '10' })!;
 }
 
+function rectPathWH(x: number, y: number, width: number, height: number): string {
+  return shapeToPath('rect', {
+    x: String(x),
+    y: String(y),
+    width: String(width),
+    height: String(height)
+  })!;
+}
+
 function node(id: string, d: string, attrs: Record<string, string>): NormalizedPathNode {
   return {
     id,
@@ -57,5 +66,25 @@ describe('matchNodes', () => {
     const byStartId = new Map(res.pairs.map((p) => [p.start.id, p.end.id]));
     expect(byStartId.get('s1')).toBe('e1');
     expect(byStartId.get('s2')).toBe('e2');
+  });
+
+  it('keeps same-fill rects matched even when size ratio is large', () => {
+    const start: NormalizedPathNode[] = [
+      node('sWhite', rectPathWH(22, 132, 47, 33), { fill: '#FBFCFF' }),
+      node('sAvatar', rectPathWH(74, 81, 16, 16), { fill: '#D8E4FF' }),
+      node('sBlue', rectPathWH(96, 87, 21, 6), { fill: '#D6E2FF' })
+    ];
+
+    const end: NormalizedPathNode[] = [
+      node('eWhiteThin', rectPathWH(22, 132, 47, 3), { fill: '#FBFCFF' }),
+      node('eAvatar', rectPathWH(74, 83, 16, 16), { fill: '#D8E4FF' }),
+      node('eBlue', rectPathWH(96, 89, 21, 6), { fill: '#D6E2FF' })
+    ];
+
+    const res = matchNodes(start, end);
+    const byStartId = new Map(res.pairs.map((p) => [p.start.id, p.end.id]));
+    expect(byStartId.get('sWhite')).toBe('eWhiteThin');
+    expect(byStartId.get('sAvatar')).toBe('eAvatar');
+    expect(byStartId.get('sBlue')).toBe('eBlue');
   });
 });
