@@ -31,6 +31,7 @@ export type AnimateSvgOptions = {
   orbitMode?: OrbitMode; // default: auto+manual
   orbitTolerance?: number; // px, default: 6
   orbitDirection?: OrbitDirection; // default: shortest
+  orbitDebug?: boolean; // default: false
 };
 
 export type AnimateSvgArgs = {

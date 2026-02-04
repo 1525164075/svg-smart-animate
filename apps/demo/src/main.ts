@@ -168,6 +168,20 @@ const orbitTolWrap = el('label', 'control');
 orbitTolWrap.innerHTML = `容差(px) <input type="number" min="0" step="1" value="6" />`;
 controls.appendChild(orbitTolWrap);
 const orbitTolInput = orbitTolWrap.querySelector<HTMLInputElement>('input')!;
+
+const orbitDebugWrap = el('label', 'control');
+orbitDebugWrap.innerHTML = `轨道调试 <input type="checkbox" />`;
+const orbitDebugHelpWrap = el('span', 'tooltipWrap');
+const orbitDebugHelpBtn = el('button', 'helpTipSmall');
+orbitDebugHelpBtn.type = 'button';
+orbitDebugHelpBtn.textContent = '?';
+const orbitDebugHelpTip = el('div', 'tooltip');
+orbitDebugHelpTip.textContent = '在预览中高亮匹配到的轨道（开发排查用，线上建议关闭）。';
+orbitDebugHelpWrap.appendChild(orbitDebugHelpBtn);
+orbitDebugHelpWrap.appendChild(orbitDebugHelpTip);
+orbitDebugWrap.appendChild(orbitDebugHelpWrap);
+controls.appendChild(orbitDebugWrap);
+const orbitDebugInput = orbitDebugWrap.querySelector<HTMLInputElement>('input')!;
 const split = el('div', 'split');
 left.appendChild(split);
 
@@ -224,6 +238,7 @@ document.addEventListener('click', () => {
 setupTooltip(helpBtn, helpTip);
 setupTooltip(engineHelpBtn, engineHelpTip);
 setupTooltip(orbitHelpBtn, orbitHelpTip);
+setupTooltip(orbitDebugHelpBtn, orbitDebugHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
   target.innerHTML = '';
@@ -289,6 +304,7 @@ function run({ autoplay }: { autoplay: boolean }) {
   const orbitMode = orbitModeSelect.value as 'off' | 'auto' | 'auto+manual';
   const orbitDirection = orbitDirSelect.value as 'shortest' | 'cw' | 'ccw';
   const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
+  const orbitDebug = orbitDebugInput.checked;
 
   try {
     controller = animateSvg({
@@ -308,6 +324,7 @@ function run({ autoplay }: { autoplay: boolean }) {
         orbitMode,
         orbitDirection,
         orbitTolerance,
+        orbitDebug,
         layerStrategy: 'area'
       }
     });

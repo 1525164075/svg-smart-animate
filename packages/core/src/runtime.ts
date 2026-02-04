@@ -328,6 +328,7 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const orbitMode = options?.orbitMode ?? 'auto+manual';
   const orbitDirection = options?.orbitDirection ?? 'shortest';
   const orbitTolerance = Math.max(0, options?.orbitTolerance ?? 6);
+  const orbitDebug = options?.orbitDebug ?? false;
   const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
   const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
   const orderMin = orders.length ? Math.min(...orders) : 0;
@@ -539,30 +540,52 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     });
   }
 
-  if (orbitMode !== 'off') {
-    const orbitSource = endNodes.length ? endNodes : startNodes;
-    const candidates = collectOrbitCandidates(orbitSource);
-    if (candidates.length) {
-      for (const tr of tracks) {
-        const startBox = bboxFromPathD(tr.startD);
-        const endBox = bboxFromPathD(tr.endD);
-        const manualId = parseOrbitId(tr.endAttrs?.['data-orbit'] ?? tr.startAttrs?.['data-orbit']);
-        const manualDir = parseOrbitDir(tr.endAttrs?.['data-orbit-dir'] ?? tr.startAttrs?.['data-orbit-dir']);
+  const orbitSource = endNodes.length ? endNodes : startNodes;
+  const orbitCandidates = (orbitMode !== 'off' || orbitDebug) ? collectOrbitCandidates(orbitSource) : [];
 
-        const binding = resolveOrbitBinding({
-          mode: orbitMode,
-          direction: orbitDirection,
-          tolerance: orbitTolerance,
-          manualId,
-          manualDir,
-          candidates,
-          startCenter: { x: startBox.cx, y: startBox.cy },
-          endCenter: { x: endBox.cx, y: endBox.cy }
-        });
+  if (orbitMode !== 'off' && orbitCandidates.length) {
+    for (const tr of tracks) {
+      const startBox = bboxFromPathD(tr.startD);
+      const endBox = bboxFromPathD(tr.endD);
+      const manualId = parseOrbitId(tr.endAttrs?.['data-orbit'] ?? tr.startAttrs?.['data-orbit']);
+      const manualDir = parseOrbitDir(tr.endAttrs?.['data-orbit-dir'] ?? tr.startAttrs?.['data-orbit-dir']);
 
-        if (binding) tr.orbit = binding;
-      }
+      const binding = resolveOrbitBinding({
+        mode: orbitMode,
+        direction: orbitDirection,
+        tolerance: orbitTolerance,
+        manualId,
+        manualDir,
+        candidates: orbitCandidates,
+        startCenter: { x: startBox.cx, y: startBox.cy },
+        endCenter: { x: endBox.cx, y: endBox.cy }
+      });
+
+      if (binding) tr.orbit = binding;
     }
+  }
+
+  if (orbitDebug && orbitCandidates.length) {
+    const matched = new Set(tracks.filter((t) => t.orbit).map((t) => t.orbit!.candidate.id));
+    const debugGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    debugGroup.setAttribute('data-orbit-debug', 'true');
+    debugGroup.setAttribute('pointer-events', 'none');
+
+    for (const cand of orbitCandidates) {
+      const p = mkPathEl();
+      p.setAttribute('d', cand.d);
+      p.setAttribute('fill', 'none');
+      p.setAttribute('vector-effect', 'non-scaling-stroke');
+
+      const hit = matched.has(cand.id);
+      p.setAttribute('stroke', hit ? '#00FFC2' : '#FFFFFF');
+      p.setAttribute('stroke-width', hit ? '1.6' : '1');
+      p.setAttribute('stroke-dasharray', hit ? '4 3' : '2 3');
+      p.setAttribute('opacity', hit ? '0.9' : '0.4');
+      debugGroup.appendChild(p);
+    }
+
+    svg.appendChild(debugGroup);
   }
 
   if (intraStagger > 0) {
