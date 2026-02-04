@@ -1,4 +1,5 @@
 export type EasingFunction = (t: number) => number;
+export type { BezierCurve } from './bezier';
 
 export type MatchWeights = {
   position?: number;
