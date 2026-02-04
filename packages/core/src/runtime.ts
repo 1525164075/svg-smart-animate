@@ -180,6 +180,59 @@ function isBackgroundNode(n: NormalizedPathNode, overall: ReturnType<typeof comp
   return areaRatio >= 0.9;
 }
 
+function detectBackgroundLayers(nodes: NormalizedPathNode[]): { background: NormalizedPathNode[]; foreground: NormalizedPathNode[] } {
+  const overall = computeBBox(nodes);
+  if (overall.area <= 0) return { background: [], foreground: nodes };
+
+  let mainBg: NormalizedPathNode | null = null;
+  let mainRatio = 0;
+
+  for (const n of nodes) {
+    if (n.tag !== 'rect') continue;
+    if (!n.fill || n.fill === 'none') continue;
+    if (n.stroke && n.stroke !== 'none') continue;
+    const b = bboxFromPathD(n.d);
+    const ratio = (b.area || 0) / overall.area;
+    if (ratio > mainRatio) {
+      mainRatio = ratio;
+      mainBg = n;
+    }
+  }
+
+  const background: NormalizedPathNode[] = [];
+  const foreground: NormalizedPathNode[] = [];
+
+  const mainColor = mainBg ? parseColorToRgba(mainBg.fill) : null;
+  const colorTol = 0.08; // ~20/255 per channel
+
+  for (const n of nodes) {
+    if (mainBg && n === mainBg && mainRatio >= 0.9) {
+      background.push(n);
+      continue;
+    }
+
+    if (
+      mainColor &&
+      n.tag === 'rect' &&
+      n.fill &&
+      n.fill !== 'none' &&
+      (!n.stroke || n.stroke === 'none')
+    ) {
+      const b = bboxFromPathD(n.d);
+      const ratio = (b.area || 0) / overall.area;
+      const c = parseColorToRgba(n.fill);
+      if (ratio >= 0.02 && c && rgbaDistance(mainColor, c) <= colorTol) {
+        background.push(n);
+        continue;
+      }
+    }
+
+    foreground.push(n);
+  }
+
+  return { background, foreground };
+}
+
 function extractViewBox(svgText: string): string | null {
   try {
     const parser = new DOMParser();
@@ -214,33 +267,34 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const endNodes = normalizeNodes(endRaw);
 
   const isAppearMode = !args.startSvg;
-  let startNodes: NormalizedPathNode[];
+  let startNodes: NormalizedPathNode[] = [];
   let animEndNodes = endNodes;
   let backgroundNodes: NormalizedPathNode[] = [];
 
-  if (args.startSvg) {
-    const startRaw = parseSvgToNodes(args.startSvg);
-    startNodes = normalizeNodes(startRaw);
-  } else {
+  if (isAppearMode) {
+    const detected = detectBackgroundLayers(endNodes);
+    backgroundNodes = detected.background;
+    animEndNodes = detected.foreground;
     const style = options?.appearStyle ?? 'collapse-to-centroid';
-    startNodes = animEndNodes.map((n) => {
-      return {
-        ...n,
-        d: makeAppearStartPath(n.d, { style }),
-        opacity: 0
-      };
-    });
-  }
+    startNodes = animEndNodes.map((n) => ({
+      ...n,
+      d: makeAppearStartPath(n.d, { style }),
+      opacity: 0
+    }));
+  } else {
+    const startRaw = parseSvgToNodes(args.startSvg!);
+    startNodes = normalizeNodes(startRaw);
 
-  const overallEnd = computeBBox(endNodes);
-  const endBackground = endNodes.filter((n) => isBackgroundNode(n, overallEnd));
-  const overallStart = computeBBox(startNodes);
-  const startBackground = startNodes.filter((n) => isBackgroundNode(n, overallStart));
+    const overallEnd = computeBBox(endNodes);
+    const endBackground = endNodes.filter((n) => isBackgroundNode(n, overallEnd));
+    const overallStart = computeBBox(startNodes);
+    const startBackground = startNodes.filter((n) => isBackgroundNode(n, overallStart));
 
-  if (endBackground.length || startBackground.length) {
-    backgroundNodes = endBackground.length ? endBackground : startBackground;
-    animEndNodes = endNodes.filter((n) => !endBackground.includes(n));
-    startNodes = startNodes.filter((n) => !startBackground.includes(n));
+    if (endBackground.length || startBackground.length) {
+      backgroundNodes = endBackground.length ? endBackground : startBackground;
+      animEndNodes = endNodes.filter((n) => !endBackground.includes(n));
+      startNodes = startNodes.filter((n) => !startBackground.includes(n));
+    }
   }
 
   const layerStrategy = options?.layerStrategy ?? 'area';
