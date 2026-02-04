@@ -34,6 +34,24 @@ npm install @marcodai/svg-smart-animate-core
 import { animateSvg } from '@marcodai/svg-smart-animate-core';
 ```
 
+## 发布/安装步骤（npm）
+
+安装：
+
+```bash
+npm install @marcodai/svg-smart-animate-core
+```
+
+版本发布（维护者）：
+
+```bash
+# core 构建
+npm -w @marcodai/svg-smart-animate-core run build
+
+# 发布（需要 npm 账号权限）
+npm -w @marcodai/svg-smart-animate-core publish --access public
+```
+
 ## 基本用法
 
 ```ts
@@ -125,6 +143,11 @@ const controller = animateSvg({
 - Start SVG 可为空：触发单 SVG 出现动画  
 - 建议给元素加 `id` 或 `data-name` 提升匹配稳定性  
 - 勾选“自定义曲线”可编辑形状/颜色/透明度/描边曲线  
+- 运行 Demo：
+  ```bash
+  npm install
+  npm run dev
+  ```
 
 ## Notes / 当前限制
 
