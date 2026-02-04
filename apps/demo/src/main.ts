@@ -114,11 +114,25 @@ timelineWrap.innerHTML = `时间轴 <select><option value="raf">raf</option><opt
 controls.appendChild(timelineWrap);
 const timelineSelect = timelineWrap.querySelector<HTMLSelectElement>('select')!;
 
+const gsapEaseWrap = el('label', 'control');
+gsapEaseWrap.innerHTML =
+  `GSAP节奏 <select>` +
+  `<option value="fast-out-slow-in">快速进入，慢慢收尾</option>` +
+  `<option value="slow-in-fast-out">缓慢进入，快速收尾</option>` +
+  `<option value="symmetric">中性对称</option>` +
+  `</select>`;
+controls.appendChild(gsapEaseWrap);
+const gsapEaseSelect = gsapEaseWrap.querySelector<HTMLSelectElement>('select')!;
+
 const layerWrap = el('label', 'control');
 layerWrap.innerHTML = `分层延迟(ms) <input type="number" min="0" step="10" value="70" />`;
 controls.appendChild(layerWrap);
 const layerInput = layerWrap.querySelector<HTMLInputElement>('input')!;
 
+const intraWrap = el('label', 'control');
+intraWrap.innerHTML = `层内错峰(ms) <input type="number" min="0" step="2" value="18" />`;
+controls.appendChild(intraWrap);
+const intraInput = intraWrap.querySelector<HTMLInputElement>('input')!;
 const split = el('div', 'split');
 left.appendChild(split);
 
@@ -234,6 +248,8 @@ function run({ autoplay }: { autoplay: boolean }) {
   const morphEngine = engineSelect.value as 'auto' | 'flubber' | 'd3';
   const timeline = timelineSelect.value as 'raf' | 'gsap';
   const layerStagger = Number.parseInt(layerInput.value || '0', 10);
+  const gsapEasePreset = gsapEaseSelect.value as 'fast-out-slow-in' | 'slow-in-fast-out' | 'symmetric';
+  const intraStagger = Number.parseInt(intraInput.value || '0', 10);
 
   try {
     controller = animateSvg({
@@ -248,6 +264,8 @@ function run({ autoplay }: { autoplay: boolean }) {
         morphEngine,
         timeline,
         layerStagger,
+        gsapEasePreset,
+        intraStagger,
         layerStrategy: 'area'
       }
     });
