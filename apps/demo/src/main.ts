@@ -109,6 +109,16 @@ engineWrap.appendChild(engineHelpWrap);
 controls.appendChild(engineWrap);
 const engineSelect = engineWrap.querySelector<HTMLSelectElement>('select')!;
 
+const timelineWrap = el('label', 'control');
+timelineWrap.innerHTML = `时间轴 <select><option value="raf">raf</option><option value="gsap">gsap</option></select>`;
+controls.appendChild(timelineWrap);
+const timelineSelect = timelineWrap.querySelector<HTMLSelectElement>('select')!;
+
+const layerWrap = el('label', 'control');
+layerWrap.innerHTML = `分层延迟(ms) <input type="number" min="0" step="10" value="70" />`;
+controls.appendChild(layerWrap);
+const layerInput = layerWrap.querySelector<HTMLInputElement>('input')!;
+
 const split = el('div', 'split');
 left.appendChild(split);
 
@@ -222,6 +232,8 @@ function run({ autoplay }: { autoplay: boolean }) {
   const samplePoints = Number.parseInt(pointsInput.value || '128', 10);
   const appearStyle = appearSelect.value as 'collapse-to-centroid' | 'bbox-to-shape';
   const morphEngine = engineSelect.value as 'auto' | 'flubber' | 'd3';
+  const timeline = timelineSelect.value as 'raf' | 'gsap';
+  const layerStagger = Number.parseInt(layerInput.value || '0', 10);
 
   try {
     controller = animateSvg({
@@ -233,7 +245,10 @@ function run({ autoplay }: { autoplay: boolean }) {
         easing,
         samplePoints,
         appearStyle,
-        morphEngine
+        morphEngine,
+        timeline,
+        layerStagger,
+        layerStrategy: 'area'
       }
     });
 

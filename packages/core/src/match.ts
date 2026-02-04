@@ -39,6 +39,19 @@ function stableKey(n: NormalizedPathNode): string | null {
   return name || null;
 }
 
+function styleKey(n: NormalizedPathNode): 'f' | 's' | 'fs' | 'none' {
+  const hasFill = n.fill !== undefined && n.fill !== 'none';
+  const hasStroke = n.stroke !== undefined && n.stroke !== 'none';
+  if (hasFill && hasStroke) return 'fs';
+  if (hasFill) return 'f';
+  if (hasStroke) return 's';
+  return 'none';
+}
+
+function groupKey(n: NormalizedPathNode): string {
+  return `${n.tag}:${styleKey(n)}`;
+}
+
 function buildFeatures(nodes: NormalizedPathNode[]): { features: NodeFeatures[]; diag: number } {
   const bboxes = nodes.map((n) => bboxFromPathD(n.d));
 
@@ -105,6 +118,44 @@ export function matchNodes(
 ): MatchResult {
   const w: Required<MatchWeights> = { ...DEFAULT_WEIGHTS, ...(weights || {}) };
 
+  const groupedStart = new Map<string, NormalizedPathNode[]>();
+  for (const s of start) {
+    const k = groupKey(s);
+    const arr = groupedStart.get(k) || [];
+    arr.push(s);
+    groupedStart.set(k, arr);
+  }
+
+  const groupedEnd = new Map<string, NormalizedPathNode[]>();
+  for (const e of end) {
+    const k = groupKey(e);
+    const arr = groupedEnd.get(k) || [];
+    arr.push(e);
+    groupedEnd.set(k, arr);
+  }
+
+  const keys = new Set<string>([...groupedStart.keys(), ...groupedEnd.keys()]);
+  const pairs: MatchedPair[] = [];
+  const unmatchedStart: NormalizedPathNode[] = [];
+  const unmatchedEnd: NormalizedPathNode[] = [];
+
+  for (const k of keys) {
+    const s = groupedStart.get(k) || [];
+    const e = groupedEnd.get(k) || [];
+    const res = matchGroup(s, e, w);
+    pairs.push(...res.pairs);
+    unmatchedStart.push(...res.unmatchedStart);
+    unmatchedEnd.push(...res.unmatchedEnd);
+  }
+
+  return { pairs, unmatchedStart, unmatchedEnd };
+}
+
+function matchGroup(
+  start: NormalizedPathNode[],
+  end: NormalizedPathNode[],
+  w: Required<MatchWeights>
+): MatchResult {
   const pairs: MatchedPair[] = [];
 
   const endByKey = new Map<string, NormalizedPathNode[]>();

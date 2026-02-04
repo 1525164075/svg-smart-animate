@@ -7,11 +7,14 @@ import { makeAppearStartPath } from './appear';
 import { svgPathProperties } from 'svg-path-properties';
 import { bboxFromPathD, parseColorToRgba, type Rgba } from './geom';
 import { linear } from './easing';
+import { gsap } from 'gsap';
 
 type Track = {
   pathEl: SVGPathElement;
   order: number;
   index: number;
+  layer: number;
+  delayMs: number;
   startD: string;
   endD: string;
   interp: (t: number) => string;
@@ -114,6 +117,21 @@ function computeBBox(nodes: NormalizedPathNode[]): {
   return { minX, minY, maxX, maxY, width, height, area: width * height };
 }
 
+const LAYER_COUNT = 3;
+
+function layerIndexByRatio(ratio: number): number {
+  if (ratio > 0.35) return 0;
+  if (ratio > 0.12) return 1;
+  return 2;
+}
+
+function layerIndexByOrder(order: number, min: number, max: number): number {
+  const t = (order - min) / (max - min || 1);
+  if (t < 1 / 3) return 0;
+  if (t < 2 / 3) return 1;
+  return 2;
+}
+
 function deriveMaxSegmentLength(options?: AnimateSvgOptions): number {
   const samplePoints = options?.samplePoints;
   if (!samplePoints || !Number.isFinite(samplePoints)) return 2;
@@ -208,6 +226,21 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     });
   }
 
+  const layerStrategy = options?.layerStrategy ?? 'area';
+  const layerStagger = Math.max(0, options?.layerStagger ?? 70);
+  const layerOverall = computeBBox(animEndNodes.length ? animEndNodes : startNodes);
+  const orders = (animEndNodes.length ? animEndNodes : startNodes).map((n) => n.order);
+  const orderMin = orders.length ? Math.min(...orders) : 0;
+  const orderMax = orders.length ? Math.max(...orders) : 1;
+
+  const layerForNode = (n: NormalizedPathNode): number => {
+    if (layerStrategy === 'order') return layerIndexByOrder(n.order, orderMin, orderMax);
+    if (layerOverall.area <= 0) return 1;
+    const b = bboxFromPathD(n.d);
+    const ratio = (b.area || 0) / layerOverall.area;
+    return layerIndexByRatio(ratio);
+  };
+
   // Build tracks: matched pairs + appear/disappear fallbacks.
   const match = matchNodes(startNodes, animEndNodes, options?.matchWeights);
 
@@ -280,11 +313,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     }
 
     const isClosed = isClosedPath(startD) && isClosedPath(p.end.d);
+    const layer = layerForNode(p.end);
+    const delayMs = layer * layerStagger;
 
     tracks.push({
       pathEl,
       order: p.end.order,
       index: trackIndex++,
+      layer,
+      delayMs,
       startD,
       endD: p.end.d,
       interp: shouldDash
@@ -335,11 +372,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     }
 
     const isClosed = isClosedPath(startD) && isClosedPath(e.d);
+    const layer = layerForNode(e);
+    const delayMs = layer * layerStagger;
 
     tracks.push({
       pathEl,
       order: e.order,
       index: trackIndex++,
+      layer,
+      delayMs,
       startD,
       endD: e.d,
       interp: shouldDash
@@ -365,11 +406,15 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     applyStaticAttributes(pathEl, s.attrs);
 
     const isClosed = isClosedPath(s.d) && isClosedPath(endD);
+    const layer = layerForNode(s);
+    const delayMs = layer * layerStagger;
 
     tracks.push({
       pathEl,
       order: s.order,
       index: trackIndex++,
+      layer,
+      delayMs,
       startD: s.d,
       endD,
       interp: createPathInterpolator(s.d, endD, { maxSegmentLength, closed: isClosed, engine: options?.morphEngine }),
@@ -387,18 +432,26 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const ordered = [...tracks].sort((a, b) => (a.order - b.order) || (a.index - b.index));
   for (const tr of ordered) svg.appendChild(tr.pathEl);
 
-  let rafId: number | null = null;
-  let currentT = 0;
+  const maxDelay = tracks.reduce((m, t) => Math.max(m, t.delayMs), 0);
+  const totalDuration = Math.max(1, duration + maxDelay);
 
-  function render(t: number): void {
-    const tt = clamp01(t);
+  let rafId: number | null = null;
+  let currentP = 0;
+  const driver = options?.timeline ?? 'raf';
+  const gsapState = { p: 0 };
+  let gsapTween: gsap.core.Tween | null = null;
+
+  function renderProgress(p: number): void {
+    const eased = easing(clamp01(p));
+    const time = eased * totalDuration;
 
     for (const tr of tracks) {
-      const d = tt <= 0 ? tr.startD : tt >= 1 ? tr.endD : tr.interp(tt);
+      const local = clamp01((time - tr.delayMs) / duration);
+      const d = local <= 0 ? tr.startD : local >= 1 ? tr.endD : tr.interp(local);
       tr.pathEl.setAttribute('d', d);
 
-      const fill = lerpColor(tr.startFill, tr.endFill, tt) ?? tr.endFill ?? tr.startFill;
-      const stroke = lerpColor(tr.startStroke, tr.endStroke, tt) ?? tr.endStroke ?? tr.startStroke;
+      const fill = lerpColor(tr.startFill, tr.endFill, local) ?? tr.endFill ?? tr.startFill;
+      const stroke = lerpColor(tr.startStroke, tr.endStroke, local) ?? tr.endStroke ?? tr.startStroke;
 
       // If both fill and stroke are omitted, SVG defaults to black fill. We only apply this default
       // when BOTH are missing to avoid accidentally filling stroke-only icons.
@@ -409,10 +462,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       if (tr.dashLength !== undefined && stroke) {
         const dash = tr.dashLength;
         tr.pathEl.setAttribute('stroke-dasharray', String(dash));
-        tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, tt)));
+        tr.pathEl.setAttribute('stroke-dashoffset', String(lerp(dash, 0, local)));
       }
 
-      const opacity = lerp(tr.startOpacity, tr.endOpacity, tt);
+      const opacity = lerp(tr.startOpacity, tr.endOpacity, local);
       tr.pathEl.setAttribute('opacity', String(Math.max(0, Math.min(1, opacity))));
     }
   }
@@ -422,22 +475,44 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       cancelAnimationFrame(rafId);
       rafId = null;
     }
+    if (gsapTween) {
+      gsapTween.pause();
+    }
+  }
+
+  function ensureGsap(): void {
+    if (gsapTween) return;
+    gsapState.p = currentP;
+    gsapTween = gsap.to(gsapState, {
+      p: 1,
+      duration: totalDuration / 1000,
+      ease: 'none',
+      paused: true,
+      onUpdate: () => {
+        currentP = clamp01(gsapState.p);
+        renderProgress(currentP);
+      }
+    });
   }
 
   function play(): void {
-    if (rafId != null) return;
+    if (driver === 'gsap') {
+      ensureGsap();
+      gsapTween!.play();
+      return;
+    }
 
-    const fromT = currentT;
+    if (rafId != null) return;
+    const fromP = currentP;
     const start = performance.now();
 
     const frame = (now: number) => {
       const elapsed = now - start;
-      const progress = clamp01(elapsed / duration);
-      const eased = easing(progress);
-      const t = fromT + (1 - fromT) * eased;
+      const progress = clamp01(elapsed / totalDuration);
+      const p = fromP + (1 - fromP) * progress;
 
-      currentT = clamp01(t);
-      render(currentT);
+      currentP = clamp01(p);
+      renderProgress(currentP);
 
       if (progress < 1) {
         rafId = requestAnimationFrame(frame);
@@ -454,12 +529,20 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   }
 
   function seek(t: number): void {
-    currentT = clamp01(t);
-    render(currentT);
+    currentP = clamp01(t);
+    if (driver === 'gsap') {
+      ensureGsap();
+      gsapTween!.progress(currentP).pause();
+    }
+    renderProgress(currentP);
   }
 
   function destroy(): void {
     stop();
+    if (gsapTween) {
+      gsapTween.kill();
+      gsapTween = null;
+    }
     container.innerHTML = '';
   }
 

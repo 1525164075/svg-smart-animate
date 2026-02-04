@@ -10,6 +10,8 @@ export type MatchWeights = {
 
 export type AppearStyle = 'collapse-to-centroid' | 'bbox-to-shape';
 export type MorphEngine = 'auto' | 'flubber' | 'd3';
+export type TimelineDriver = 'raf' | 'gsap';
+export type LayerStrategy = 'area' | 'order';
 
 export type AnimateSvgOptions = {
   duration?: number;
@@ -18,6 +20,9 @@ export type AnimateSvgOptions = {
   matchWeights?: MatchWeights;
   appearStyle?: AppearStyle;
   morphEngine?: MorphEngine;
+  timeline?: TimelineDriver;
+  layerStrategy?: LayerStrategy;
+  layerStagger?: number; // ms
 };
 
 export type AnimateSvgArgs = {
