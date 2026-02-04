@@ -1,5 +1,6 @@
 import './styles.css';
-import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo } from '@svg-smart-animate/core';
+import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo, type BezierCurve } from '@svg-smart-animate/core';
+import { createCurveEditor } from './curveEditor';
 
 const sampleStart = `<svg viewBox="0 0 100 100">
   <rect id="shape" x="12" y="18" width="32" height="24" rx="6" fill="#7CFCFF"/>
@@ -162,6 +163,20 @@ propTimingWrap.appendChild(propTimingHelpWrap);
 controls.appendChild(propTimingWrap);
 const propTimingSelect = propTimingWrap.querySelector<HTMLSelectElement>('select')!;
 
+const curveToggleWrap = el('label', 'control');
+curveToggleWrap.innerHTML = `自定义曲线 <input type="checkbox" />`;
+const curveHelpWrap = el('span', 'tooltipWrap');
+const curveHelpBtn = el('button', 'helpTipSmall');
+curveHelpBtn.type = 'button';
+curveHelpBtn.textContent = '?';
+const curveHelpTip = el('div', 'tooltip');
+curveHelpTip.textContent = '启用后可为形状/颜色/透明度/描边设置独立 cubic-bezier 曲线，优先于属性节奏设置。';
+curveHelpWrap.appendChild(curveHelpBtn);
+curveHelpWrap.appendChild(curveHelpTip);
+curveToggleWrap.appendChild(curveHelpWrap);
+controls.appendChild(curveToggleWrap);
+const curveToggleInput = curveToggleWrap.querySelector<HTMLInputElement>('input')!;
+
 const matchDebugWrap = el('label', 'control');
 matchDebugWrap.innerHTML = `匹配面板 <input type="checkbox" checked />`;
 const matchDebugHelpWrap = el('span', 'tooltipWrap');
@@ -263,6 +278,36 @@ orbitDebugHelpWrap.appendChild(orbitDebugHelpTip);
 orbitDebugWrap.appendChild(orbitDebugHelpWrap);
 controls.appendChild(orbitDebugWrap);
 const orbitDebugInput = orbitDebugWrap.querySelector<HTMLInputElement>('input')!;
+
+const curvePanel = el('div', 'curvePanel');
+left.appendChild(curvePanel);
+const curveTitle = el('div', 'curvePanelTitle');
+curveTitle.textContent = '属性曲线';
+curvePanel.appendChild(curveTitle);
+const curveGrid = el('div', 'curveGrid');
+curvePanel.appendChild(curveGrid);
+
+const linearCurve: BezierCurve = { x1: 0, y1: 0, x2: 1, y2: 1 };
+const curveState = {
+  shape: { ...linearCurve },
+  color: { ...linearCurve },
+  opacity: { ...linearCurve },
+  stroke: { ...linearCurve }
+};
+
+const curveEditors = [
+  createCurveEditor({ title: '形状', value: curveState.shape, onChange: (c) => (curveState.shape = c) }),
+  createCurveEditor({ title: '颜色', value: curveState.color, onChange: (c) => (curveState.color = c) }),
+  createCurveEditor({ title: '透明度', value: curveState.opacity, onChange: (c) => (curveState.opacity = c) }),
+  createCurveEditor({ title: '描边', value: curveState.stroke, onChange: (c) => (curveState.stroke = c) })
+];
+curveEditors.forEach((editor) => curveGrid.appendChild(editor.root));
+
+function syncCurvePanel() {
+  curvePanel.style.display = curveToggleInput.checked ? 'block' : 'none';
+}
+curveToggleInput.addEventListener('change', syncCurvePanel);
+syncCurvePanel();
 const split = el('div', 'split');
 left.appendChild(split);
 
@@ -328,6 +373,7 @@ setupTooltip(orbitSnapHelpBtn, orbitSnapHelpTip);
 setupTooltip(orbitDebugHelpBtn, orbitDebugHelpTip);
 setupTooltip(motionHelpBtn, motionHelpTip);
 setupTooltip(propTimingHelpBtn, propTimingHelpTip);
+setupTooltip(curveHelpBtn, curveHelpTip);
 setupTooltip(matchDebugHelpBtn, matchDebugHelpTip);
 
 function renderRawSvg(target: HTMLDivElement, svgText: string) {
@@ -439,6 +485,7 @@ function run({ autoplay }: { autoplay: boolean }) {
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
   const motionProfile = motionSelect.value as 'uniform' | 'focus-first' | 'detail-first';
   const propertyTiming = propTimingSelect.value as 'balanced' | 'shape-first' | 'color-lag';
+  const propertyCurves = curveToggleInput.checked ? curveState : undefined;
   const matchDebug = matchDebugInput.checked;
   const groupStagger = Number.parseInt(groupInput.value || '0', 10);
   const groupStrategy = groupStrategySelect.value as 'auto' | 'pathKey' | 'class';
@@ -465,6 +512,7 @@ function run({ autoplay }: { autoplay: boolean }) {
         intraStagger,
         motionProfile,
         propertyTiming,
+        propertyCurves,
         groupStagger,
         groupStrategy,
         orbitMode,
