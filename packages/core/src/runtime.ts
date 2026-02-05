@@ -421,6 +421,10 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
   const options = args.options;
   const duration = options?.duration ?? 600;
   const easing = options?.easing ?? linear;
+  const onProgress = options?.onProgress;
+  const notifyProgress = (p: number) => {
+    if (onProgress) onProgress(clamp01(p));
+  };
 
   const endRaw = parseSvgToNodes(args.endSvg);
   const endNodes = normalizeNodes(endRaw);
@@ -1058,6 +1062,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const local = clamp01((time - delay) / duration);
       renderTrack(tr, local);
     }
+
+    notifyProgress(p);
   }
 
   function renderGsapProgress(p: number): void {
@@ -1075,6 +1081,8 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
       const easedLocal = easeFn(local);
       renderTrack(tr, easedLocal);
     }
+
+    notifyProgress(p);
   }
 
   function stop(): void {
@@ -1091,6 +1099,9 @@ export function createAnimator(args: AnimateSvgArgs): AnimateController {
     if (gsapTimeline) return;
     const ease = resolveGsapEase(options?.gsapEasePreset);
     gsapTimeline = gsap.timeline({ paused: true });
+    gsapTimeline.eventCallback('onUpdate', () => {
+      notifyProgress(gsapTimeline!.progress());
+    });
 
     for (const tr of tracks) {
       const delay = tr.delayMs + (tr.intraDelayMs ?? 0);

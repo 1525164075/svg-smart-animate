@@ -49,6 +49,7 @@ export type AnimateSvgOptions = {
   orbitSnap?: boolean; // default: true
   motionProfile?: MotionProfile; // default: uniform
   onMatchComputed?: (info: MatchDebugInfo) => void;
+  onProgress?: (t: number) => void;
   propertyTiming?: PropertyTiming; // default: balanced
   propertyCurves?: PropertyCurves;
   groupStagger?: number; // ms

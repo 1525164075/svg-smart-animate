@@ -113,6 +113,25 @@ describe('animateSvg runtime', () => {
     expect(x).toBeGreaterThan(25);
   });
 
+  it('calls onProgress when seeking', () => {
+    const startSvg = `<svg viewBox="0 0 10 10"><path d="M0 0 H2 V2 H0 Z"/></svg>`;
+    const endSvg = `<svg viewBox="0 0 10 10"><path d="M8 8 H10 V10 H8 Z"/></svg>`;
+
+    const container = document.createElement('div');
+    const calls: number[] = [];
+
+    const controller = animateSvg({
+      startSvg,
+      endSvg,
+      container,
+      options: { duration: 100, onProgress: (t) => calls.push(t) }
+    });
+
+    controller.seek(0.25);
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[calls.length - 1]).toBeCloseTo(0.25, 3);
+  });
+
   it('orbit motion moves along arc instead of straight line', () => {
     const startSvg = `<svg viewBox=\"0 0 100 100\">\n      <circle id=\"orbit\" cx=\"50\" cy=\"50\" r=\"20\" stroke=\"#000\" fill=\"none\"/>\n      <rect id=\"box\" data-orbit=\"#orbit\" x=\"68\" y=\"48\" width=\"4\" height=\"4\" fill=\"#f00\"/>\n    </svg>`;
 
