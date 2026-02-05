@@ -1,6 +1,7 @@
 import './styles.css';
 import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo, type BezierCurve } from '@svg-smart-animate/core';
-import { createCurveEditor } from './curveEditor';
+import { Pane } from 'tweakpane';
+import * as CubicBezierPlugin from '@tweakpane/plugin-cubic-bezier';
 
 const sampleStart = `<svg viewBox="0 0 100 100">
   <rect id="shape" x="12" y="18" width="32" height="24" rx="6" fill="#7CFCFF"/>
@@ -284,8 +285,8 @@ left.appendChild(curvePanel);
 const curveTitle = el('div', 'curvePanelTitle');
 curveTitle.textContent = '属性曲线';
 curvePanel.appendChild(curveTitle);
-const curveGrid = el('div', 'curveGrid');
-curvePanel.appendChild(curveGrid);
+const curvePaneWrap = el('div', 'curvePaneWrap');
+curvePanel.appendChild(curvePaneWrap);
 
 const linearCurve: BezierCurve = { x1: 0, y1: 0, x2: 1, y2: 1 };
 const curveState = {
@@ -295,13 +296,20 @@ const curveState = {
   stroke: { ...linearCurve }
 };
 
-const curveEditors = [
-  createCurveEditor({ title: '形状', value: curveState.shape, onChange: (c) => (curveState.shape = c) }),
-  createCurveEditor({ title: '颜色', value: curveState.color, onChange: (c) => (curveState.color = c) }),
-  createCurveEditor({ title: '透明度', value: curveState.opacity, onChange: (c) => (curveState.opacity = c) }),
-  createCurveEditor({ title: '描边', value: curveState.stroke, onChange: (c) => (curveState.stroke = c) })
-];
-curveEditors.forEach((editor) => curveGrid.appendChild(editor.root));
+const curvePane = new Pane({ container: curvePaneWrap });
+curvePane.registerPlugin(CubicBezierPlugin);
+
+const addCurveFolder = (title: string, key: keyof typeof curveState) => {
+  const folder = curvePane.addFolder({ title });
+  folder.addBinding(curveState, key, { view: 'cubicBezier' }).on('change', (ev) => {
+    curveState[key] = ev.value as BezierCurve;
+  });
+};
+
+addCurveFolder('形状', 'shape');
+addCurveFolder('颜色', 'color');
+addCurveFolder('透明度', 'opacity');
+addCurveFolder('描边', 'stroke');
 
 function syncCurvePanel() {
   curvePanel.style.display = curveToggleInput.checked ? 'block' : 'none';
@@ -336,6 +344,22 @@ const rightHeader = el('div', 'cardHeader');
 right.appendChild(rightHeader);
 rightHeader.innerHTML = `<strong>预览</strong>`;
 
+const timelineBox = el('div', 'timelineBox');
+const timelineLabel = el('div', 'timelineLabel');
+timelineLabel.textContent = '时间轴 ';
+const timelineValue = el('span', 'timelineValue');
+timelineValue.textContent = '(0ms)';
+timelineLabel.appendChild(timelineValue);
+const timelineInput = document.createElement('input');
+timelineInput.type = 'range';
+timelineInput.min = '0';
+timelineInput.max = '1000';
+timelineInput.value = '0';
+timelineInput.className = 'timelineSlider';
+timelineBox.appendChild(timelineLabel);
+timelineBox.appendChild(timelineInput);
+rightHeader.appendChild(timelineBox);
+
 const previewWrap = el('div', 'previewWrap');
 right.appendChild(previewWrap);
 
@@ -352,6 +376,15 @@ right.appendChild(matchPanel);
 
 let controller: AnimateController | null = null;
 let lastMatchInfo: MatchDebugInfo | null = null;
+let isScrubbing = false;
+
+const updateTimelineUI = (p: number) => {
+  const clamped = Math.max(0, Math.min(1, p));
+  timelineInput.value = String(Math.round(clamped * 1000));
+  const duration = Number.parseInt(durationInput.value || '700', 10);
+  const ms = Math.round(clamped * duration);
+  timelineValue.textContent = `(${ms}ms)`;
+};
 
 function setupTooltip(btn: HTMLButtonElement, tip: HTMLDivElement) {
   btn.addEventListener('click', (e) => {
@@ -399,9 +432,8 @@ function renderRawSvg(target: HTMLDivElement, svgText: string) {
 
     target.appendChild(imported);
   } catch (e) {
-    target.innerHTML = `<div style="color: var(--danger); font-family: var(--mono); font-size: 12px; padding: 10px;">${
-      e instanceof Error ? e.message : String(e)
-    }</div>`;
+    target.innerHTML = `<div style="color: var(--danger); font-family: var(--mono); font-size: 12px; padding: 10px;">${e instanceof Error ? e.message : String(e)
+      }</div>`;
   }
 }
 
@@ -494,6 +526,9 @@ function run({ autoplay }: { autoplay: boolean }) {
   const orbitTolerance = Number.parseFloat(orbitTolInput.value || '6');
   const orbitSnap = orbitSnapInput.checked;
   const orbitDebug = orbitDebugInput.checked;
+  const onProgress = (p: number) => {
+    if (!isScrubbing) updateTimelineUI(p);
+  };
 
   try {
     controller = animateSvg({
@@ -520,17 +555,19 @@ function run({ autoplay }: { autoplay: boolean }) {
         orbitTolerance,
         orbitSnap,
         orbitDebug,
+        onProgress,
         layerStrategy: 'area',
         onMatchComputed: matchDebug
           ? (info) => {
-              lastMatchInfo = info;
-              renderMatchPanel(info);
-            }
+            lastMatchInfo = info;
+            renderMatchPanel(info);
+          }
           : undefined
       }
     });
 
     controller.seek(0);
+    updateTimelineUI(0);
     if (autoplay) controller.play();
   } catch (e) {
     setError(e);
@@ -545,6 +582,18 @@ runBtn.addEventListener('click', () => run({ autoplay: true }));
 playBtn.addEventListener('click', () => controller?.play());
 pauseBtn.addEventListener('click', () => controller?.pause());
 resetBtn.addEventListener('click', () => controller?.seek(0));
+
+timelineInput.addEventListener('input', () => {
+  isScrubbing = true;
+  controller?.pause();
+  const p = Number(timelineInput.value) / 1000;
+  controller?.seek(p);
+  updateTimelineUI(p);
+});
+
+timelineInput.addEventListener('change', () => {
+  isScrubbing = false;
+});
 
 startText.addEventListener('input', () => renderRawSvg(startPreview, startText.value));
 endText.addEventListener('input', () => renderRawSvg(endPreview, endText.value));
