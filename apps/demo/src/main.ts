@@ -300,17 +300,22 @@ const curveState = {
 const curvePane = new Pane({ container: curvePaneWrap });
 curvePane.registerPlugin(EssentialsPlugin);
 
-const addCurveFolder = (title: string, key: keyof typeof curveState) => {
-  const folder = curvePane.addFolder({ title });
-  folder.addBinding(curveState, key, { view: 'cubicbezier' }).on('change', (ev) => {
-    curveState[key] = ev.value as CurveTuple;
+const addCurveBlade = (title: string, key: keyof typeof curveState) => {
+  const blade = curvePane.addBlade({
+    view: 'cubicbezier',
+    label: title,
+    value: curveState[key]
+  });
+  blade.on('change', (ev) => {
+    const v = (ev as { value?: { toObject?: () => CurveTuple } }).value;
+    curveState[key] = v && typeof v.toObject === 'function' ? v.toObject() : (v as CurveTuple);
   });
 };
 
-addCurveFolder('形状', 'shape');
-addCurveFolder('颜色', 'color');
-addCurveFolder('透明度', 'opacity');
-addCurveFolder('描边', 'stroke');
+addCurveBlade('形状', 'shape');
+addCurveBlade('颜色', 'color');
+addCurveBlade('透明度', 'opacity');
+addCurveBlade('描边', 'stroke');
 
 function syncCurvePanel() {
   curvePanel.style.display = curveToggleInput.checked ? 'block' : 'none';
