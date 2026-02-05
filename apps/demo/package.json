@@ -11,6 +11,7 @@
   "dependencies": {
     "@marcodai/svg-smart-animate-core": "0.1.0",
     "@tweakpane/plugin-essentials": "^0.2.1",
-    "tweakpane": "^4.0.5"
+    "tweakpane": "^4.0.5",
+    "vite": "^7.3.1"
   }
 }
