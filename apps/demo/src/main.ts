@@ -1,5 +1,5 @@
 import './styles.css';
-import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo, type BezierCurve } from '@svg-smart-animate/core';
+import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo, type BezierCurve } from '@marcodai/svg-smart-animate-core';
 import { Pane } from 'tweakpane';
 import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 
