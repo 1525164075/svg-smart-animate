@@ -57,6 +57,17 @@ a {
   gap: 16px;
 }
 
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.langControl select {
+  min-width: 70px;
+}
+
 .brand {
   display: flex;
   flex-direction: column;
