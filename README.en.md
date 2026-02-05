@@ -4,6 +4,15 @@
 
 Smart Animate-like SVG morphing on the web. Supports Start/End transitions, single‑SVG appear animation, property timing and custom curves.
 
+## Live Demo & Assets
+
+- Live demo:  
+  [https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/](https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/)
+- Screen recording (.mov):  
+  [Recording](<apps/demo/assets/录屏2026-02-05 17.28.35.mov>)
+- Full page screenshot:  
+  ![Demo Screenshot](<apps/demo/assets/截屏2026-02-05 17.33.17.png>)
+
 ## Quick Start
 
 ```bash
@@ -67,16 +76,6 @@ Run demo:
 npm install
 npm run dev
 ```
-
-Live demo:  
-[https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/](https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/)
-
-## Demo Assets
-
-- Screen recording (.mov):
-  [Recording](<apps/demo/assets/录屏2026-02-05 17.28.35.mov>)
-- Full page screenshot:
-  ![Demo Screenshot](<apps/demo/assets/截屏2026-02-05 17.33.17.png>)
 
 ## Notes / Limitations
 

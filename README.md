@@ -4,6 +4,15 @@
 
 在网页中实现类似 Figma Smart Animate 的 SVG 形变动画：支持 Start/End 过渡、单 SVG 出现动画、属性节奏与曲线编辑。
 
+## 在线 Demo & 素材
+
+- 在线 Demo：  
+  [https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/](https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/)
+- 使用的 Demo 录屏：  
+  [录屏（.mov）](<apps/demo/assets/录屏2026-02-05 17.28.35.mov>)
+- Demo 网站截屏：  
+  ![Demo 截屏](<apps/demo/assets/截屏2026-02-05 17.33.17.png>)
+
 ## 快速开始
 
 ```bash
@@ -150,15 +159,6 @@ const controller = animateSvg({
   npm install
   npm run dev
   ```
-- 在线 Demo：  
-  [https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/](https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/)
-
-## Demo 素材
-
-- 使用的 Demo 录屏：  
-  [录屏（.mov）](<apps/demo/assets/录屏2026-02-05 17.28.35.mov>)
-- Demo 网站截屏：  
-  ![Demo 截屏](<apps/demo/assets/截屏2026-02-05 17.33.17.png>)
 
 ## Notes / 当前限制
 
