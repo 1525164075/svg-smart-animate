@@ -1,7 +1,7 @@
 import './styles.css';
 import { animateSvg, easeInOutCubic, linear, type AnimateController, type MatchDebugInfo, type BezierCurve } from '@svg-smart-animate/core';
 import { Pane } from 'tweakpane';
-import * as CubicBezierPlugin from '@tweakpane/plugin-cubic-bezier';
+import * as EssentialsPlugin from '@tweakpane/plugin-essentials';
 
 const sampleStart = `<svg viewBox="0 0 100 100">
   <rect id="shape" x="12" y="18" width="32" height="24" rx="6" fill="#7CFCFF"/>
@@ -297,11 +297,11 @@ const curveState = {
 };
 
 const curvePane = new Pane({ container: curvePaneWrap });
-curvePane.registerPlugin(CubicBezierPlugin);
+curvePane.registerPlugin(EssentialsPlugin);
 
 const addCurveFolder = (title: string, key: keyof typeof curveState) => {
   const folder = curvePane.addFolder({ title });
-  folder.addBinding(curveState, key, { view: 'cubicBezier' }).on('change', (ev) => {
+  folder.addBinding(curveState, key, { view: 'cubicbezier' }).on('change', (ev) => {
     curveState[key] = ev.value as BezierCurve;
   });
 };
