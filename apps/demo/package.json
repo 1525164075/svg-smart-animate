@@ -9,6 +9,9 @@
     "test": "echo \"(demo) no tests\""
   },
   "dependencies": {
-    "@marcodai/svg-smart-animate-core": "0.1.0"
+    "@marcodai/svg-smart-animate-core": "0.1.0",
+    "@tweakpane/plugin-cubic-bezier": "^0.1.1",
+    "@tweakpane/plugin-essentials": "^0.2.1",
+    "tweakpane": "^4.0.5"
   }
 }
