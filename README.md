@@ -150,6 +150,8 @@ const controller = animateSvg({
   npm install
   npm run dev
   ```
+- 在线 Demo：  
+  [https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/](https://svg-smart-animate-g7f12v6mu-1525164075-qqcoms-projects.vercel.app/)
 
 ## Demo 素材
 
