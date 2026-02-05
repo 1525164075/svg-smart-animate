@@ -288,12 +288,13 @@ curvePanel.appendChild(curveTitle);
 const curvePaneWrap = el('div', 'curvePaneWrap');
 curvePanel.appendChild(curvePaneWrap);
 
-const linearCurve: BezierCurve = { x1: 0, y1: 0, x2: 1, y2: 1 };
+type CurveTuple = [number, number, number, number];
+const linearCurveTuple: CurveTuple = [0, 0, 1, 1];
 const curveState = {
-  shape: { ...linearCurve },
-  color: { ...linearCurve },
-  opacity: { ...linearCurve },
-  stroke: { ...linearCurve }
+  shape: [...linearCurveTuple] as CurveTuple,
+  color: [...linearCurveTuple] as CurveTuple,
+  opacity: [...linearCurveTuple] as CurveTuple,
+  stroke: [...linearCurveTuple] as CurveTuple
 };
 
 const curvePane = new Pane({ container: curvePaneWrap });
@@ -302,7 +303,7 @@ curvePane.registerPlugin(EssentialsPlugin);
 const addCurveFolder = (title: string, key: keyof typeof curveState) => {
   const folder = curvePane.addFolder({ title });
   folder.addBinding(curveState, key, { view: 'cubicbezier' }).on('change', (ev) => {
-    curveState[key] = ev.value as BezierCurve;
+    curveState[key] = ev.value as CurveTuple;
   });
 };
 
@@ -517,7 +518,15 @@ function run({ autoplay }: { autoplay: boolean }) {
   const intraStagger = Number.parseInt(intraInput.value || '0', 10);
   const motionProfile = motionSelect.value as 'uniform' | 'focus-first' | 'detail-first';
   const propertyTiming = propTimingSelect.value as 'balanced' | 'shape-first' | 'color-lag';
-  const propertyCurves = curveToggleInput.checked ? curveState : undefined;
+  const toBezier = (t: CurveTuple): BezierCurve => ({ x1: t[0], y1: t[1], x2: t[2], y2: t[3] });
+  const propertyCurves = curveToggleInput.checked
+    ? {
+        shape: toBezier(curveState.shape),
+        color: toBezier(curveState.color),
+        opacity: toBezier(curveState.opacity),
+        stroke: toBezier(curveState.stroke)
+      }
+    : undefined;
   const matchDebug = matchDebugInput.checked;
   const groupStagger = Number.parseInt(groupInput.value || '0', 10);
   const groupStrategy = groupStrategySelect.value as 'auto' | 'pathKey' | 'class';
